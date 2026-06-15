@@ -90,7 +90,7 @@ Load it from a local clone (works today):
 ```bash
 claude --plugin-dir /path/to/nb-harness
 ```
-Once NB is published to a Git host, marketplace install becomes the one-liner — `claude plugin marketplace add …` then `claude plugin install nb@nb-harness`. (Maintainers fill the published URL at release time — see [`docs/RELEASE.md`](docs/RELEASE.md).)
+Or install from the marketplace — `claude plugin marketplace add seokho1215-ux/nb-harness` then `claude plugin install nb@nb-harness`.
 
 **Or script install — fallback.** Copies NB into a project's `.claude/`; commands appear as `/nb-setup` (hyphen, no namespace). The installer shows the plan and writes nothing without `--apply`; even then it asks you to type "yes" (`--yes` skips the confirm — CI only).
 ```bash
