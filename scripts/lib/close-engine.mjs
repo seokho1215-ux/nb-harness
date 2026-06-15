@@ -31,7 +31,7 @@ export function closeEngine(input = {}) {
     core, activation = {}, contracts = {}, stablePacks = new Set(),
     proofs = {}, events = [], decisions = {}, taskSlug, taskStrength = 'standard', envOverride = false,
     reviewArtifacts = {}, mode = 'native', now, mustNotChange = [], requiredArtifacts, driftRisks = [],
-    modelPolicyMissing = false, modelBelowFloor = [],
+    modelPolicyMissing = false, modelBelowFloor = [], reviewBudgetBelowFloor = false, generalTwoRound = false,
   } = input;
   const errors = [];     // -> CHECK_ERROR
   const blockers = [];   // -> NOT_READY
@@ -149,6 +149,20 @@ export function closeEngine(input = {}) {
   if (modelPolicyMissing) blockers.push('model_policy not set — run /nb:plan (model-policy derives the portable model tier)');
   if (Array.isArray(modelBelowFloor) && modelBelowFloor.length && !decisionOk(decisions['model-degrade'])) {
     blockers.push(`model tier lowered below the derived floor (${modelBelowFloor.join('; ')}) — raise it, or accept via .nb/decisions/<task>.model-degrade.md`);
+  }
+
+  // 7d. review-budget axis: a review budget set BELOW the risk floor (fewer review rounds than the change's risk
+  // demands) needs a human review-degrade decision. close.mjs computes the floor from the observed workflow/
+  // categories/security; the engine binds the result (the required `review` artifact + two_round's
+  // security-report-check are enforced via requiredArtifacts + the forced security pack above).
+  if (reviewBudgetBelowFloor && !decisionOk(decisions['review-degrade'])) {
+    blockers.push('review budget is below the risk floor (fewer review rounds than the change needs) — raise it, or accept via .nb/decisions/<task>.review-degrade.md');
+  }
+  // GENERAL two_round (review_budget two_round in a NON-security context): two review ROUNDS are required (two
+  // perspectives / two families) — NOT the security-report-check. Security two_round is enforced separately via
+  // the forced security pack (close.mjs). This keeps "빡쎄게" on UI/docs/backend from over-firing a security gate.
+  if (generalTwoRound && (core.reviewCount || 0) < 2) {
+    blockers.push(`review budget two_round needs a 2nd review round — ${core.reviewCount || 0}/2 review artifacts present (provide a round-2 review)`);
   }
 
   return verdict(errors, blockers, openRisks, warnings);

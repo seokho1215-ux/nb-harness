@@ -11,7 +11,7 @@ import { isStub, redact } from './proof.mjs';
 // Everything else is treated as a CHOICE decision and must name what else was considered.
 const ACK_KINDS = new Set([
   'baseline-risk', 'risks-accepted',
-  'data', 'auth', 'secret', 'payment', 'deploy', 'delete', 'network', 'mcp', 'supply-chain', 'ci-security', 'code-execution', 'attack-consent', 'drift-accepted', 'model-degrade',
+  'data', 'auth', 'secret', 'payment', 'deploy', 'delete', 'network', 'mcp', 'supply-chain', 'ci-security', 'code-execution', 'attack-consent', 'drift-accepted', 'model-degrade', 'review-degrade',
 ]);
 
 // approved_by must not be the AI grading its own homework. Soft (a human can still type a fake name) — this

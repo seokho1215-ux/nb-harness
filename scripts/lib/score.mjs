@@ -8,9 +8,15 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripBom } from './proof.mjs';
+import { stripBom, sha256, parseProvenance, normalizeBody } from './proof.mjs';
 import { requiredFor } from './workflow.mjs';
+
+// Canonical text for hashing a provenance-LESS (manual) review so it can't be laundered into a 2nd "round" by
+// whitespace alone: reuse proof.mjs normalizeBody (CRLF->LF + outer trim), then strip per-line trailing
+// whitespace and collapse blank lines. Real content differences still hash differently.
+const reviewDedupKey = (txt) => sha256(normalizeBody(txt).split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').replace(/\n{2,}/g, '\n'));
 import { statePresetGates } from './preset.mjs';
+import { deriveReviewFloor, reviewRequirements } from './review-budget.mjs';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -85,15 +91,43 @@ export function scoreTask(nbDir) {
   const openRiskList = Array.isArray(state.open_risks) ? state.open_risks : [];
   const openRisks = openRiskList.length;
 
+  // How many DISTINCT review ROUNDS happened (for review_budget two_round in a GENERAL context — two reviews, not
+  // the security-report-check). Counted from the ACTUAL review artifacts (not the ledger, whose append-only rows
+  // can point at the same file twice). Each round must be a UNIQUE, TASK-MATCHED artifact: dedup by the
+  // cross-review provenance hash (a distinct review RUN) when present, else by a NORMALIZED content hash (a
+  // distinct artifact, whitespace-laundering-resistant). So the same file referenced twice, an identical/copied
+  // review, a whitespace-only variant, or a DIFFERENT-TASK review can't inflate the count to 2.
+  // (Honest limit: this excludes OTHER-task reviews, not an OLD round of the SAME task — same-task staleness
+  // isn't deterministically detectable here without per-review base_ref/run metadata.)
+  let reviewCount = 0;
+  try {
+    const seen = new Set();
+    for (const f of readdirSync(join(nbDir, 'reviews'))) {
+      if (f === '.gitkeep') continue;
+      const full = join(nbDir, 'reviews', f);
+      if (!matchesTask(f, full)) continue; // task-matched only (excludes OTHER-task artifacts)
+      let txt = ''; try { txt = readFileSync(full, 'utf8'); } catch { continue; }
+      const prov = parseProvenance(txt);
+      seen.add(prov && prov.output_sha256 ? `p:${prov.output_sha256}` : `c:${reviewDedupKey(txt)}`);
+    }
+    reviewCount = seen.size;
+  } catch { reviewCount = 0; }
+
   // Ready to CLAIM DONE = the core steps THIS workflow requires actually happened. plan + intent are always
   // required; evidence/review/brief are gated by the workflow's required_artifacts (audit #35) so harness-score
   // agrees with /nb:close (a docs-only flow isn't "not ready" for a review it never runs). Unknown => all three.
   // An applied preset (audit M1) can only RAISE the required set — UNION its always-required artifacts so
-  // harness-score agrees with /nb:close (both honor the preset; neither can be looser than the other).
-  const required = [...new Set([...requiredFor(REPO_ROOT, workflow), ...statePresetGates(state).require_artifacts])];
+  // harness-score agrees with /nb:close (both honor the preset; neither can be looser than the other). The
+  // review-budget axis adds 'review' when its level is single/two_round (close re-derives from the observed diff;
+  // score uses the recorded budget or the workflow/declared-pack floor).
+  const rbSecurity = Array.isArray(state.declared_packs) && state.declared_packs.includes('security');
+  const rbFloor = deriveReviewFloor({ workflow, categories: [], securityActive: rbSecurity });
+  const rbLevel = (state.review_budget && state.review_budget.level) || rbFloor;
+  const rbReview = reviewRequirements(rbLevel).requiresReview ? ['review'] : [];
+  const required = [...new Set([...requiredFor(REPO_ROOT, workflow), ...statePresetGates(state).require_artifacts, ...rbReview])];
   const artifactOk = (k, r) => !required.includes(k) || r.v === 'yes';
   const ready = plan === 'yes' && intent === 'yes'
     && artifactOk('evidence', evidence) && artifactOk('review', review) && artifactOk('brief', brief);
 
-  return { task, workflow, slug, plan, intent, evidence, review, brief, openRisks, openRiskList, ready };
+  return { task, workflow, slug, plan, intent, evidence, review, brief, reviewCount, openRisks, openRiskList, ready };
 }

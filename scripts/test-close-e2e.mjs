@@ -199,6 +199,90 @@ const decision = (nb, slug, kind, what) => wf(join(nb, 'decisions', `${slug}.${k
   rmSync(root, { recursive: true, force: true });
 }
 
+// ---- 2h) review-budget axis: floor forbids skipping review on risky work; two_round forces the 2-round gate --
+{
+  // code-execution observed (eval in a changed file) -> security implied -> review floor two_round; a hand-set
+  // review_budget=none is below the floor and has no review-degrade decision -> blocked.
+  const nb = tmpNb(); const root = resolve(nb, '..'); const slug = 'risky-exec';
+  core(nb, slug, { strength_level: 'standard', review_budget: { level: 'none', source: 'user_degrade', floor: 'two_round' } });
+  mkdirSync(join(root, 'src'), { recursive: true });
+  wf(join(root, 'src', 'run.js'), `${'ev' + 'al'}(userInput)\n`); // a code-execution sink, assembled at runtime so this source holds no literal call
+  wf(join(nb, 'logs', 'tool-events.jsonl'), JSON.stringify({ tool: 'Write', ok: true, path: 'src/run.js' }) + '\n');
+  const r = run(nb);
+  check('code-execution + review_budget none -> NOT_READY (review below floor)', /NOT READY/.test(r.stdout) && r.status === 1 && /review budget is below the risk floor/.test(r.stdout));
+  rmSync(root, { recursive: true, force: true });
+}
+{
+  // docs-only with no risk -> floor none -> review_budget none is allowed -> READY (evidence only, no review).
+  const nb = tmpNb(); const slug = 'tweak-docs2';
+  wf(join(nb, 'evidence', `${slug}.md`), 'e');
+  wj(join(nb, 'state.json'), { current_task: slug, current_task_slug: slug, current_workflow: 'docs-only', intent_summary: `do ${slug}`, last_evidence: `.nb/evidence/${slug}.md`, strength_level: 'light', review_budget: { level: 'none', source: 'auto', floor: 'none' } });
+  const r = run(nb);
+  check('docs-only + review_budget none -> READY (floor none, review not required)', /✓ READY/.test(r.stdout) && r.status === 0);
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+{
+  // two_round in a SECURITY context (declared security pack) forces the 2-round security-report-check.
+  const nb = tmpNb(); const slug = 'hard-sec';
+  core(nb, slug, { strength_level: 'full', declared_packs: ['security'], review_budget: { level: 'two_round', source: 'auto', floor: 'two_round' } });
+  const r = run(nb);
+  check('two_round in a SECURITY context forces security-report-check -> NOT_READY', /NOT READY/.test(r.stdout) && r.status === 1 && /security-report-check/.test(r.stdout));
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+{
+  // GENERAL two_round (UI/docs/backend "빡쎄게") needs a 2nd review ROUND — NOT the security-report-check.
+  const nb = tmpNb(); const slug = 'hard-ui';
+  core(nb, slug, { strength_level: 'standard', review_budget: { level: 'two_round', source: 'user_raise', floor: 'single' } });
+  const r = run(nb);
+  check('general two_round needs a 2nd review round (not security-report-check)', /NOT READY/.test(r.stdout) && r.status === 1 && /2nd review round/.test(r.stdout) && !/security-report-check/.test(r.stdout));
+  // add a 2nd review artifact -> the 2-round requirement is met (general review, no security report)
+  wf(join(nb, 'reviews', `${slug}.round2.md`), `Task: ${slug}\nsecond review round.`);
+  const r2 = run(nb);
+  check('general two_round with 2 review artifacts -> READY', /✓ READY/.test(r2.stdout) && r2.status === 0);
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+
+// ---- 2j) general two_round reviewCount counts ONLY unique, task-matched review rounds --------------------
+{
+  const general = (slug, reviews, ledgerDupOf) => {
+    const nb = tmpNb();
+    wf(join(nb, 'evidence', `${slug}.md`), 'e'); wf(join(nb, 'briefs', `${slug}.md`), 'b');
+    for (const rv of reviews) wf(join(nb, 'reviews', rv.name), rv.body);
+    wj(join(nb, 'state.json'), { current_task: slug, current_task_slug: slug, current_workflow: 'standard-feature', intent_summary: `do ${slug}`, last_evidence: `.nb/evidence/${slug}.md`, last_review: `.nb/reviews/${reviews[0].name}`, last_brief: `.nb/briefs/${slug}.md`, strength_level: 'standard', review_budget: { level: 'two_round', source: 'user_raise', floor: 'single' } });
+    if (ledgerDupOf) wf(join(nb, 'artifacts.jsonl'), [1, 2].map(() => JSON.stringify({ ts: 't', type: 'review', task_slug: slug, status: 'current', path: `.nb/reviews/${ledgerDupOf}` })).join('\n') + '\n');
+    const r = run(nb); rmSync(resolve(nb, '..'), { recursive: true, force: true }); return r;
+  };
+  // one review, but the ledger lists it twice -> still 1 unique round -> NOT_READY
+  check('general two_round: ledger double-count of one review -> NOT_READY',
+    (() => { const r = general('dupe', [{ name: 'dupe.r1.md', body: 'Task: dupe\nround one' }], 'dupe.r1.md'); return /NOT READY/.test(r.stdout) && /2nd review round/.test(r.stdout); })());
+  // round-1 task-matched + two OTHER-task reviews present -> they don't count -> 1 round -> NOT_READY
+  check('general two_round: other-task reviews do not count -> NOT_READY',
+    (() => { const r = general('mine', [{ name: 'mine.r1.md', body: 'Task: mine\nround one' }, { name: 'x1.md', body: 'Task: elsewhere\na' }, { name: 'x2.md', body: 'Task: elsewhere\nb' }]); return /NOT READY/.test(r.stdout) && /2nd review round/.test(r.stdout); })());
+  // two task-matched reviews with IDENTICAL content (a copy) -> dedup by content -> 1 round -> NOT_READY
+  check('general two_round: identical-content copies count once -> NOT_READY',
+    (() => { const r = general('copyr', [{ name: 'copyr.r1.md', body: 'Task: copyr\nsame body' }, { name: 'copyr.r2.md', body: 'Task: copyr\nsame body' }]); return /NOT READY/.test(r.stdout) && /2nd review round/.test(r.stdout); })());
+  // a manual review laundered by WHITESPACE ONLY (CRLF / trailing spaces / extra blank lines) -> same key -> NOT_READY
+  check('general two_round: whitespace-only variant of one review counts once -> NOT_READY',
+    (() => { const r = general('wash', [{ name: 'wash.r1.md', body: 'Task: wash\nthe review body' }, { name: 'wash.r2.md', body: 'Task: wash\r\nthe review body   \n\n\n' }]); return /NOT READY/.test(r.stdout) && /2nd review round/.test(r.stdout); })());
+  // two DISTINCT task-matched reviews -> 2 rounds -> READY
+  check('general two_round: two distinct task-matched reviews -> READY',
+    (() => { const r = general('twor', [{ name: 'twor.r1.md', body: 'Task: twor\nround one' }, { name: 'twor.r2.md', body: 'Task: twor\nround two' }]); return /✓ READY/.test(r.stdout) && r.status === 0; })());
+}
+
+// ---- 2i) observed security raises the model_policy floor (not just the workflow) -------------------------
+{
+  // a standard-feature task that CHANGES an auth file: the observed `auth` category is a security floor, so the
+  // model_policy floor rises to strongest/two-family — a seeded standard-tier policy is now below it -> blocked.
+  const nb = tmpNb(); const root = resolve(nb, '..'); const slug = 'auth-change';
+  core(nb, slug, { strength_level: 'standard', model_policy: { planner: 'balanced', implement: 'balanced', review: 'strong', security: null, family: 'single' }, review_budget: { level: 'two_round', source: 'auto', floor: 'two_round' } });
+  mkdirSync(join(root, 'src', 'auth'), { recursive: true });
+  wf(join(root, 'src', 'auth', 'login.ts'), 'export const login = 1\n');
+  wf(join(nb, 'logs', 'tool-events.jsonl'), JSON.stringify({ tool: 'Write', ok: true, path: 'src/auth/login.ts' }) + '\n');
+  const r = run(nb);
+  check('observed auth -> model_policy below the security floor -> NOT_READY', /NOT READY/.test(r.stdout) && r.status === 1 && /model tier lowered below/.test(r.stdout));
+  rmSync(root, { recursive: true, force: true });
+}
+
 // ---- 3) SMOKE TABLE: every one of the 14 packs, declared + active with no proofs -> NOT_READY -----------
 // Cheap coverage for all 14 contracts (not deep e2e): proves each contract LOADS, the pack ACTIVATES (via
 // declaration), and its proof requirement BLOCKS. Uses full strength so even full-tagged proofs are required.

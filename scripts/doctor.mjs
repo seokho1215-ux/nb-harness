@@ -70,6 +70,7 @@ function sourceChecks({ ok, w, f, need }) {
     'lib/publish-hygiene.mjs', 'publish-check.mjs', 'test-publish-hygiene.mjs',
     'lib/attack-gate.mjs', 'sandbox-attack.mjs', 'test-attack-gate.mjs', 'test-secret-redaction.mjs',
     'lib/design-docs.mjs', 'test-design-docs.mjs', 'lib/model-policy.mjs', 'model-policy.mjs', 'test-model-policy.mjs',
+    'lib/review-budget.mjs', 'review-budget.mjs', 'test-review-budget.mjs', 'lib/security-floor.mjs',
     'scaffold-workflow.mjs', 'scaffold-skill.mjs', 'scaffold-module.mjs', 'scaffold-preset.mjs',
     'update.mjs', 'uninstall.mjs', 'migrate-state.mjs']
     .forEach((s) => need(`scripts/${s}`));

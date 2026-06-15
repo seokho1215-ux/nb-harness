@@ -13,6 +13,8 @@ import { CATEGORIES, floorStrength, impliedPacks } from './lib/activation.mjs';
 import { stripBom, slugify } from './lib/proof.mjs';
 import { statePresetGates } from './lib/preset.mjs';
 import { deriveModelPolicy } from './lib/model-policy.mjs';
+import { deriveReviewFloor } from './lib/review-budget.mjs';
+import { modelSecurityFloorOn } from './lib/security-floor.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nb = process.env.NB_DIR || join(ROOT, '.nb');
@@ -87,7 +89,7 @@ if (differentTask && !replaceTask) {
 // without this, --replace-task only swapped task/strength/workflow and left old intent+evidence behind.)
 const TASK_SCOPED = ['workflow_reason', 'escalation_reason', 'active_agent_lane', 'active_gates',
   'intent_summary', 'non_goals', 'definition_of_done', 'taste_notes', 'must_not_change', 'drift_risks',
-  'design_docs', 'model_policy', 'last_review', 'last_evidence', 'last_brief', 'last_security',
+  'design_docs', 'model_policy', 'review_budget', 'last_review', 'last_evidence', 'last_brief', 'last_security',
   'open_risks', 'blocked_reason', 'declared_packs', 'task_base_ref'];
 if (differentTask && replaceTask) for (const k of TASK_SCOPED) delete state[k];
 
@@ -102,7 +104,12 @@ if (packs.length) state.declared_packs = packs;
 // Derive the portable model tier from the judged strength/workflow (+ any applied preset) — NB derives it; the
 // user doesn't pick a model per task. The standalone scripts/model-policy.mjs re-derives / --show / --degrade.
 const pgz = statePresetGates(state);
-state.model_policy = deriveModelPolicy({ strength: final, workflow, preset: { min_strength: pgz.min_strength, cross_family: pgz.cross_family } });
+const secFloorSeed = modelSecurityFloorOn({ workflow, categories: cats, securityActive: packs.includes('security') });
+state.model_policy = deriveModelPolicy({ strength: final, workflow, preset: { min_strength: pgz.min_strength, cross_family: pgz.cross_family }, securityFloor: secFloorSeed });
+// Seed the review budget from the auto-derived floor (the user steers it later via scripts/review-budget.mjs).
+// The text-derived categories feed the floor (close re-derives from the OBSERVED diff, like the strength floor).
+const reviewFloor = deriveReviewFloor({ workflow, categories: cats, securityActive: packs.includes('security') });
+state.review_budget = { level: reviewFloor, source: 'auto', floor: reviewFloor };
 state.updated_at = new Date().toISOString();
 
 try { writeFileSync(sp, JSON.stringify(state, null, 2) + '\n'); }

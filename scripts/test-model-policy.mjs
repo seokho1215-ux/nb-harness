@@ -33,6 +33,11 @@ check('preset cross_family raises family to cross-family', pcf.family === 'cross
 // unknown strength defaults to standard (not below)
 check('unknown strength -> standard base', deriveModelPolicy({ strength: undefined, workflow: 'standard-feature' }).implement === 'balanced');
 
+// securityFloor forces the strongest model + two-family review (even on a standard-feature task)
+const secFloor = deriveModelPolicy({ strength: 'standard', workflow: 'standard-feature', securityFloor: true });
+check('securityFloor -> review/security strongest + two-family', secFloor.review === 'strongest' && secFloor.security === 'strongest' && secFloor.family === 'two-family' && secFloor.planner === 'strongest');
+check('no securityFloor on standard-feature stays balanced/single', deriveModelPolicy({ strength: 'standard', workflow: 'standard-feature', securityFloor: false }).family === 'single');
+
 // --- validateModelPolicy ---
 check('valid policy passes', validateModelPolicy(full).length === 0);
 check('bad tier rejected', validateModelPolicy({ ...full, implement: 'turbo' }).some((e) => /implement/.test(e)));

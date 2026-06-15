@@ -17,6 +17,8 @@ import { slugify, stripBom } from './lib/proof.mjs';
 import { requiredFor } from './lib/workflow.mjs';
 import { statePresetGates } from './lib/preset.mjs';
 import { deriveModelPolicy, belowFloor } from './lib/model-policy.mjs';
+import { deriveReviewFloor, reviewRequirements, belowFloor as reviewBelowFloor } from './lib/review-budget.mjs';
+import { securityFloorOn, modelSecurityFloorOn } from './lib/security-floor.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nb = process.env.NB_DIR || join(ROOT, '.nb');
@@ -128,9 +130,35 @@ try {
   let taskStrength = state.strength_level || 'standard';
   if (pg.min_strength && (RANK[pg.min_strength] || 0) > (RANK[taskStrength] || 0)) taskStrength = pg.min_strength;
 
+  // review-budget axis: derive the floor from the OBSERVED workflow/categories/security, then honor the recorded
+  // budget. requiresReview -> review is a required artifact; requiresTwoRound (two_round) -> force the security
+  // pack's 2-round security-report-check (raise to full + add security to the active+stable set). A budget BELOW
+  // the floor needs a review-degrade decision (the engine blocks otherwise). Raise-only: it can only ADD review.
+  const securityActive = activation.active_packs.includes('security');
+  const secFloor = securityFloorOn({ workflow: state.current_workflow, categories: activation.observed_categories, securityActive });
+  const reviewFloor = deriveReviewFloor({ workflow: state.current_workflow, categories: activation.observed_categories, securityActive });
+  const reviewLevel = (state.review_budget && state.review_budget.level) || reviewFloor;
+  const reviewBudgetBelowFloor = reviewBelowFloor(reviewLevel, reviewFloor);
+  const rbReqs = reviewRequirements(reviewLevel);
+  if (rbReqs.requiresReview && !requiredArtifacts.includes('review')) requiredArtifacts.push('review');
+  // two_round splits by CONTEXT: a SECURITY floor forces the 2-round security-report-check (force the security
+  // pack + full); a GENERAL two_round just requires a 2nd review round (engine checks core.reviewCount >= 2).
+  let generalTwoRound = false;
+  if (rbReqs.requiresTwoRound) {
+    if (secFloor) {
+      if (!activation.active_packs.includes('security')) activation.active_packs.push('security');
+      if (contracts.security) activeContracts.security = contracts.security;
+      stablePacks.add('security');
+      if (RANK.full > RANK[taskStrength]) taskStrength = 'full';
+    } else {
+      generalTwoRound = true;
+    }
+  }
+
   // model-tier axis: derive the floor from strength/workflow/preset; a present-but-below-floor policy is a
   // degrade (needs a model-degrade decision); a missing policy blocks once a task is in flight (implement..done).
-  const modelFloor = deriveModelPolicy({ strength: state.strength_level, workflow: state.current_workflow, preset: { min_strength: pg.min_strength, cross_family: pg.cross_family } });
+  const modelSecFloor = modelSecurityFloorOn({ workflow: state.current_workflow, categories: activation.observed_categories, securityActive });
+  const modelFloor = deriveModelPolicy({ strength: state.strength_level, workflow: state.current_workflow, preset: { min_strength: pg.min_strength, cross_family: pg.cross_family }, securityFloor: modelSecFloor });
   const inFlight = ['implement', 'review', 'security', 'brief', 'done'].includes(state.current_mode);
   const modelPolicyMissing = inFlight && !state.model_policy;
   const modelBelowFloor = state.model_policy ? belowFloor(state.model_policy, modelFloor) : [];
@@ -139,7 +167,7 @@ try {
     core, activation, contracts: activeContracts, stablePacks,
     proofs, events, decisions, reviewArtifacts, mode, now, mustNotChange, requiredArtifacts,
     taskSlug: slug, taskStrength, envOverride, driftRisks: state.drift_risks,
-    modelPolicyMissing, modelBelowFloor,
+    modelPolicyMissing, modelBelowFloor, reviewBudgetBelowFloor, generalTwoRound,
   });
 
   console.log('NB close — can this task be closed as done?');
@@ -155,6 +183,7 @@ try {
     console.log(`Preset: ${state.preset.id} (${extra}${pg.min_strength ? `, min strength ${pg.min_strength}` : ''})`);
   }
   if (state.model_policy) console.log(`Model tier: implement ${state.model_policy.implement} · review ${state.model_policy.review} · family ${state.model_policy.family}${modelBelowFloor.length ? ` (⚠ below floor: ${modelBelowFloor.join('; ')})` : ''}`);
+  console.log(`Review budget: ${reviewLevel}${reviewLevel !== reviewFloor ? ` (floor ${reviewFloor}${reviewBudgetBelowFloor ? ', ⚠ BELOW floor' : ''})` : ''}`);
   if (activation.active_packs.length) console.log(`Active packs: ${activation.active_packs.join(', ')}`);
   if (activation.observed_categories.length) console.log(`Risk categories: ${activation.observed_categories.join(', ')}`);
   const exrep = activation.exec_scan || { hits: [], skipped: [] };

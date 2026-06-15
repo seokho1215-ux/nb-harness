@@ -54,6 +54,7 @@ node([join(ROOT, 'scripts', 'test-attack-gate.mjs')]).status === 0 ? ok('attack-
 node([join(ROOT, 'scripts', 'test-secret-redaction.mjs')]).status === 0 ? ok('secret-redaction (M4) tests pass') : bad('secret-redaction tests fail');
 node([join(ROOT, 'scripts', 'test-design-docs.mjs')]).status === 0 ? ok('design-docs (P-e/M2) tests pass') : bad('design-docs tests fail');
 node([join(ROOT, 'scripts', 'test-model-policy.mjs')]).status === 0 ? ok('model-policy tests pass') : bad('model-policy tests fail');
+node([join(ROOT, 'scripts', 'test-review-budget.mjs')]).status === 0 ? ok('review-budget tests pass') : bad('review-budget tests fail');
 node([join(ROOT, 'scripts', 'test-security-report-check.mjs')]).status === 0 ? ok('security report-check tests pass') : bad('security report-check tests fail');
 node([join(ROOT, 'scripts', 'test-nb-run.mjs')]).status === 0 ? ok('nb-run tests pass') : bad('nb-run tests fail');
 node([join(ROOT, 'scripts', 'test-setup.mjs')]).status === 0 ? ok('setup tests pass') : bad('setup tests fail');

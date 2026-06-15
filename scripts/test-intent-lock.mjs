@@ -30,7 +30,7 @@ const vstate = (nb) => spawnSync('node', [VS], { encoding: 'utf8', env: { ...pro
 const setState = (nb, o) => writeFileSync(join(nb, 'state.json'), JSON.stringify(o, null, 2));
 const readState = (nb) => JSON.parse(readFileSync(join(nb, 'state.json'), 'utf8'));
 const rm = (nb) => rmSync(resolve(nb, '..'), { recursive: true, force: true });
-const planned = { current_task: 't', current_task_slug: 't', current_mode: 'design', strength_level: 'standard', current_workflow: 'standard-feature', model_policy: { planner: 'strongest', implement: 'strongest', review: 'strongest', security: 'strongest', family: 'two-family' } };
+const planned = { current_task: 't', current_task_slug: 't', current_mode: 'design', strength_level: 'standard', current_workflow: 'standard-feature', model_policy: { planner: 'strongest', implement: 'strongest', review: 'strongest', security: 'strongest', family: 'two-family' }, review_budget: { level: 'two_round', source: 'auto', floor: 'two_round' } };
 
 // 1) basic: a real intent + DoD persist; non_goals parse; then validate-state accepts implement.
 {

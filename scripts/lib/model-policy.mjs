@@ -32,9 +32,12 @@ const WORKFLOW_RAISE = {
   'release': { planner: 'strongest', implement: 'strong', review: 'strongest', security: 'strongest', family: 'two-family' },
 };
 
-// Derive the model policy FLOOR from { strength, workflow, preset:{min_strength?, cross_family?} }. Raise-only by
-// construction: each lane = the MAX tier across strength-base ∪ workflow-raise; family folds in preset.cross_family.
-export function deriveModelPolicy({ strength, workflow, preset } = {}) {
+// Derive the model policy FLOOR from { strength, workflow, preset:{min_strength?, cross_family?}, securityFloor }.
+// Raise-only by construction: each lane = the MAX tier across strength-base ∪ workflow-raise; family folds in
+// preset.cross_family. When securityFloor is on (lib/security-floor.mjs — security-sensitive / security pack /
+// a security risk category), the security-critical lanes are forced to the top: security review needs the
+// strongest model + a two-family red/blue, so a security-relevant change can't run on a weak or same-family model.
+export function deriveModelPolicy({ strength, workflow, preset, securityFloor = false } = {}) {
   const presetMin = preset && preset.min_strength;
   const effRank = Math.max(RANK_STR[strength] || RANK_STR.standard, RANK_STR[presetMin] || 0);
   const effStrength = effRank >= 3 ? 'full' : effRank === 2 ? 'standard' : 'light';
@@ -50,7 +53,14 @@ export function deriveModelPolicy({ strength, workflow, preset } = {}) {
   // security lane: set when the base/workflow puts security in play OR a cross-family+ family is required.
   const secBase = wf.security || base.security;
   pol.security = secBase || (fRank(pol.family) >= fRank('cross-family') ? 'strong' : null);
-  pol.reason = `derived from strength ${effStrength}${workflow ? `, workflow ${workflow}` : ''}${presetMin ? `, preset min ${presetMin}` : ''}${preset && preset.cross_family ? ', preset cross-family' : ''}`;
+  // security floor: a security-relevant change forces the strongest model + a two-family review.
+  if (securityFloor) {
+    pol.planner = maxTier(pol.planner, 'strongest');
+    pol.review = 'strongest';
+    pol.security = 'strongest';
+    pol.family = maxFamily(pol.family, 'two-family');
+  }
+  pol.reason = `derived from strength ${effStrength}${workflow ? `, workflow ${workflow}` : ''}${presetMin ? `, preset min ${presetMin}` : ''}${preset && preset.cross_family ? ', preset cross-family' : ''}${securityFloor ? ', security floor' : ''}`;
   return pol;
 }
 

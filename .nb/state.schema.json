@@ -34,6 +34,15 @@
         "family": { "enum": ["single", "cross-family", "two-family"] }
       }
     },
+    "review_budget": {
+      "type": ["object", "null"],
+      "description": "How many review rounds (scripts/review-budget.mjs). Auto-derived from workflow/risk; the user raises freely, lowering below the floor needs a review-degrade decision.",
+      "properties": {
+        "level": { "enum": ["none", "single", "two_round"] },
+        "source": { "enum": ["auto", "user_raise", "user_degrade", "preset", "floor"] },
+        "floor": { "enum": ["none", "single", "two_round"] }
+      }
+    },
     "last_review": { "type": ["string", "null"] },
     "last_evidence": { "type": ["string", "null"] },
     "last_brief": { "type": ["string", "null"] },

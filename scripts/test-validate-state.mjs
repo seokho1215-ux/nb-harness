@@ -23,6 +23,7 @@ const base = (over = {}) => ({
   definition_of_done: 'The thing works, is covered by a test, and the brief explains it.',
   non_goals: ['no refactor'],
   model_policy: { planner: 'strongest', implement: 'strongest', review: 'strongest', security: 'strongest', family: 'two-family' },
+  review_budget: { level: 'two_round', source: 'auto', floor: 'two_round' },
   last_evidence: '.nb/evidence/add-thing.md', last_review: '.nb/reviews/add-thing.md',
   last_brief: '.nb/briefs/add-thing.md', last_security: null, updated_at: '2026-06-14',
   ...over,
@@ -84,6 +85,16 @@ const degradeBody = 'task: add-thing\nkind: model-degrade\ndecision: Run impleme
 const lowSec = base({ current_workflow: 'security-sensitive', last_security: '.nb/reviews/add-thing.security-report.md', model_policy: { planner: 'strongest', implement: 'fast', review: 'strongest', security: 'strongest', family: 'two-family' } });
 check('security-sensitive with implement below floor, no decision -> INVALID', bad(lowSec, 'below the derived floor'));
 check('security-sensitive below floor WITH model-degrade decision -> OK', ok(lowSec, { decision: { name: 'add-thing.model-degrade.md', body: degradeBody } }));
+
+// review-budget axis: in-flight needs a valid review_budget; a budget below the risk floor needs review-degrade
+check('done w/o review_budget -> INVALID', bad(base({ review_budget: null }), 'review_budget'));
+check('done with malformed review_budget -> INVALID', bad(base({ review_budget: { level: 'triple', source: 'auto' } }), 'review_budget'));
+// standard-feature floor=single; a hand-edited 'none' is below floor -> needs review-degrade
+check('standard-feature review_budget none (below floor) no decision -> INVALID', bad(base({ current_workflow: 'standard-feature', review_budget: { level: 'none', source: 'user_degrade', floor: 'single' } }), 'below the risk floor'));
+const rdBody = 'task: add-thing\nkind: review-degrade\ndecision: Skip the second review round for this small, low-risk slice.\nrationale: The change is tiny and well-scoped; one review is enough and a human signed off on fewer rounds.\napproved_by: Maintainer\ntimestamp: 2026-06-14\n';
+check('standard-feature review_budget none (below floor) WITH review-degrade -> OK', ok(base({ current_workflow: 'standard-feature', review_budget: { level: 'none', source: 'user_degrade', floor: 'single' } }), { decision: { name: 'add-thing.review-degrade.md', body: rdBody } }));
+// security-sensitive floor=two_round; 'single' is below -> needs review-degrade
+check('security-sensitive review_budget single (below floor) no decision -> INVALID', bad(base({ current_workflow: 'security-sensitive', last_security: '.nb/reviews/add-thing.security-report.md', review_budget: { level: 'single', source: 'user_degrade', floor: 'two_round' } }), 'below the risk floor'));
 
 console.log(`\n${pass} passed / ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -9,6 +9,8 @@ import { checkIntentText } from './lib/intent.mjs';
 import { checkDesignDocs } from './lib/design-docs.mjs';
 import { statePresetGates } from './lib/preset.mjs';
 import { deriveModelPolicy, belowFloor, validateModelPolicy } from './lib/model-policy.mjs';
+import { deriveReviewFloor, belowFloor as reviewBelowFloor, validateReviewBudget } from './lib/review-budget.mjs';
+import { modelSecurityFloorOn } from './lib/security-floor.mjs';
 import { verifyDecision } from './lib/decision.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,7 +62,8 @@ if (IN_FLIGHT.includes(s.current_mode)) {
     for (const e of mErrs) errs.push(e);
     if (!mErrs.length) {
       const pgz = statePresetGates(s);
-      const floor = deriveModelPolicy({ strength: s.strength_level, workflow: s.current_workflow, preset: { min_strength: pgz.min_strength, cross_family: pgz.cross_family } });
+      const secF = modelSecurityFloorOn({ workflow: s.current_workflow, categories: [], securityActive: Array.isArray(s.declared_packs) && s.declared_packs.includes('security') });
+      const floor = deriveModelPolicy({ strength: s.strength_level, workflow: s.current_workflow, preset: { min_strength: pgz.min_strength, cross_family: pgz.cross_family }, securityFloor: secF });
       const below = belowFloor(s.model_policy, floor);
       if (below.length) {
         const mslug = s.current_task_slug || (s.current_task ? s.current_task.toLowerCase().replace(/[^a-z0-9]+/g, '-') : null);
@@ -68,6 +71,26 @@ if (IN_FLIGHT.includes(s.current_mode)) {
         let ok = false;
         if (dp && existsSync(dp)) { try { ok = verifyDecision(readFileSync(dp, 'utf8'), { kind: 'model-degrade', taskSlug: mslug }).ok; } catch { ok = false; } }
         if (!ok) errs.push(`model_policy is below the derived floor (${below.join('; ')}) — raise it, or record a model-degrade decision`);
+      }
+    }
+  }
+
+  // review-budget axis: in-flight needs a valid review_budget; a budget BELOW the risk floor (fewer review
+  // rounds than the change demands) needs a human review-degrade decision. NB derives it; the user only lowers.
+  if (!s.review_budget) {
+    errs.push(`${s.current_mode} requires review_budget (run /nb:plan — strength-judge seeds it)`);
+  } else {
+    const rbErrs = validateReviewBudget(s.review_budget);
+    for (const e of rbErrs) errs.push(e);
+    if (!rbErrs.length) {
+      const secActive = Array.isArray(s.declared_packs) && s.declared_packs.includes('security');
+      const rbFloor = deriveReviewFloor({ workflow: s.current_workflow, categories: [], securityActive: secActive });
+      if (reviewBelowFloor(s.review_budget.level, rbFloor)) {
+        const rslug = s.current_task_slug || (s.current_task ? s.current_task.toLowerCase().replace(/[^a-z0-9]+/g, '-') : null);
+        const dp = rslug ? join(nb, 'decisions', `${rslug}.review-degrade.md`) : null;
+        let ok = false;
+        if (dp && existsSync(dp)) { try { ok = verifyDecision(readFileSync(dp, 'utf8'), { kind: 'review-degrade', taskSlug: rslug }).ok; } catch { ok = false; } }
+        if (!ok) errs.push(`review_budget "${s.review_budget.level}" is below the risk floor "${rbFloor}" — raise it, or record a review-degrade decision`);
       }
     }
   }
