@@ -1,0 +1,20 @@
+{
+  "harness_version": "0.1.0",
+  "current_mode": "implement",
+  "current_workflow": "standard-feature",
+  "workflow_reason": "a form that writes to storage; logic but no safety-floor touch",
+  "escalation_reason": null,
+  "current_task": "settings-name",
+  "strength_level": "full",
+  "active_agent_lane": "review",
+  "active_gates": ["self_check"],
+  "intent_summary": "Let a user save a display name on a settings page.",
+  "non_goals": ["avatars", "auth changes", "i18n"],
+  "definition_of_done": "Name persists, shows after reload, long names handled.",
+  "taste_notes": "Match the existing settings layout; quiet, no new colors.",
+  "drift_risks": ["adding profile fields beyond the name"],
+  "last_review": ".nb/reviews/settings-name.md",
+  "last_evidence": ".nb/evidence/settings-name.md",
+  "open_risks": ["very long names are trimmed, not rejected"],
+  "updated_at": "2026-06-09T00:00:00Z"
+}

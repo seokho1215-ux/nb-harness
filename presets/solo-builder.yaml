@@ -1,0 +1,10 @@
+# Advanced/team profile. The default experience stays automatic (core/strength.md).
+id: solo-builder
+name: Solo builder
+description: One person shipping fast but safe — light review overhead, strong floor + evidence.
+default_workflow_bias: standard-feature
+review_strictness: low          # self-review heavy; cross-family on risky work only
+evidence_strictness: medium
+security_strictness: floor+module
+cross_family_required: false    # optional when no second AI family is set up
+human_brief_depth: short

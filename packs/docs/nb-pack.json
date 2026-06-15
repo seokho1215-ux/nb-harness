@@ -1,0 +1,26 @@
+{
+  "$comment": "NB Pack — Docs. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "docs",
+  "name": "Docs Pack",
+  "description": "Doc-accuracy discipline — proves the docs match the shipped behavior, not an aspirational version.",
+  "domain": "docs",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["doc-sync"],
+  "adds_workflows": [],
+  "produces_artifacts": ["review", "brief"],
+  "evidence_required": ["the doc claims checked against the actual code/behavior", "no stale instructions for the changed area"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["open_risks"],
+  "harness_score_contribution": { "dimensions": ["review"], "note": "Feeds Review with a doc-vs-code accuracy check so documentation can't claim behavior the code doesn't have." },
+  "install_deps": [],
+  "permissions": ["read", "write"],
+  "safety_gates": ["self_check", "review_gate"],
+  "exit_criteria": ["doc claims match shipped behavior", "no stale instructions for the changed area"],
+  "close_contract": {
+    "activation_rules": { "paths": ["docs/", "guides/", "/(^|\\/)README\\b/i", "/(^|\\/)CHANGELOG\\b/i", "/\\.(mdx|rst|adoc)$/i"], "commands": [] },
+    "analytical_proofs": [ { "proof_type": "doc-accuracy", "strength": "light", "required_claims": ["matches-shipped-behavior"] } ]
+  }
+}

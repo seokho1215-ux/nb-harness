@@ -1,0 +1,10 @@
+# Advanced/team profile. The default experience stays automatic (core/strength.md).
+id: strict
+name: Strict
+description: Maximum traceability — review and evidence on everything, intent checked hard.
+default_workflow_bias: full-feature
+review_strictness: high         # cross-family review on every change
+evidence_strictness: high       # evidence required; no "done" without shown output
+security_strictness: high
+cross_family_required: true
+human_brief_depth: detailed

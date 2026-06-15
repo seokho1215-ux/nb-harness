@@ -1,0 +1,23 @@
+# NB Harness — Full pipeline preset
+id: full
+name: Full pipeline (Design -> Implement -> Security)
+description: >
+  End to end. Each stage's output becomes the next stage's answer key (synergy).
+  Sequential between stages (causal: no design -> no implement); parallel allowed
+  within a stage. Strength is auto-judged by the AI per task (blueprint 3.9) — the
+  values below are safe defaults, not user switches.
+
+sequence:
+  - design
+  - implement
+  - security
+
+# cross-family review direction per stage (blueprint 3.4)
+cross_family:
+  design: one_way        # Claude builds -> Codex verifies
+  implement: one_way     # single-family build -> Codex verifies only
+  security: two_way      # red/blue, 2 rounds, roles swap so both models' attack imagination comes out (4.4)
+
+defaults:
+  strength: full         # safe default; AI lowers only for clearly light work, never below the floor (3.9)
+  security_rounds: 2     # AI drops to 1 only for clearly light work; never for auth/payment/DB/secrets/etc.

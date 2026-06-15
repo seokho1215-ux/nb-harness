@@ -1,0 +1,9 @@
+{
+  "profile": "strict",
+  "description": "Block destructive/secrets/env/key/private-file access; require approval for installs/network; require evidence before Stop. For risk-laden codebases.",
+  "install": "ask",
+  "destructive": "block",
+  "network": "ask",
+  "secrets": "block",
+  "stop_requires_evidence": true
+}

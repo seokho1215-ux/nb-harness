@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: doctor (source)
+        run: node scripts/doctor.mjs --source
+      - name: validate manifests
+        run: node scripts/validate-manifests.mjs
+      - name: hook tests
+        run: node scripts/test-hooks.mjs
+      - name: harness-score tests
+        run: node scripts/test-harness-score.mjs
+      - name: close firewall tests
+        run: node scripts/test-close.mjs
+      - name: proof verifier tests
+        run: node scripts/test-proof.mjs
+      - name: activation engine tests
+        run: node scripts/test-activation.mjs
+      - name: close-engine tests
+        run: node scripts/test-close-engine.mjs
+      - name: validate workflows
+        run: node scripts/validate-workflows.mjs
+      - name: validate commands
+        run: node scripts/validate-commands.mjs
+      - name: validate state
+        run: node scripts/validate-state.mjs
+      - name: validate artifacts
+        run: node scripts/validate-artifacts.mjs
+      - name: validate packs
+        run: node scripts/validate-packs.mjs
+      - name: install fixture matrix
+        run: node scripts/test-install-fixtures.mjs
+      - name: release check (includes install smoke)
+        run: node scripts/release-check.mjs

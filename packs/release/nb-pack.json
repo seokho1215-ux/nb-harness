@@ -1,0 +1,27 @@
+{
+  "$comment": "NB Pack — Release. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "release",
+  "name": "Release Pack",
+  "description": "Release discipline — proves the release gate is green and the notes cover what actually changed.",
+  "domain": "release",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["changelog-check"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "brief"],
+  "evidence_required": ["release/verification gate output (green)", "changelog entry for each user-facing change", "version bumped"],
+  "review_gate": "cross_family",
+  "approvals_required": ["cutting a release tag"],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": { "dimensions": ["evidence", "review"], "note": "Feeds Evidence with the green release gate and Review with a notes-cover-changes check so a release can't ship with a stale changelog." },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger", "review_gate"],
+  "exit_criteria": ["release gate green output captured", "changelog covers every user-facing change", "version bumped"],
+  "close_contract": {
+    "activation_rules": { "paths": ["/\\bCHANGELOG\\b/i", "/\\bRELEASE\\b/i"], "commands": ["/\\bnpm version\\b/", "/\\b(release|publish)\\b/i"] },
+    "objective_proofs": [ { "proof_type": "release-check", "strength": "standard" }, { "proof_type": "publish-file-list", "strength": "full" } ],
+    "analytical_proofs": [ { "proof_type": "release-notes-cover-changes", "strength": "standard", "required_claims": ["changelog-covers-changes"] } ]
+  }
+}

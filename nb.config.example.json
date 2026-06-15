@@ -1,0 +1,9 @@
+{
+  "$comment": "Copy to nb.config.json in your project root and fill these in. NB resolves the {VARIABLES} used across AGENTS.md / agents / modules from here. NB pins no stack — these adapt it to your project. Set VERIFY_CMD to your project's REAL check before relying on evidence: the default below assumes a build step — drop `npm run build &&` if you have none (e.g. just `npm test`, or `node --test`).",
+  "PROJECT_ROOT": ".",
+  "WORKSPACE": "nb-workspace",
+  "PROJECT_DOCS": "docs",
+  "VERIFY_CMD": "npm run build && npm test",
+  "DEPLOY_CMD": "npm run deploy",
+  "SECURITY_GATE": "docs/security.md"
+}

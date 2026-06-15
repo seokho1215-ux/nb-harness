@@ -1,0 +1,34 @@
+{
+  "$comment": "NB Pack — Testing. Experimental: close_contract ships and runs; pack-scoped skills implemented (verify-capture, regression-guard), no per-domain agents/workflows. Validated against ../../core/pack-manifest.schema.json",
+  "id": "testing",
+  "name": "Testing Pack",
+  "description": "Evidence Ledger discipline for tests — captures real verify output and guards against regressions instead of trusting a green claim.",
+  "domain": "testing",
+  "status": "experimental",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["verify-capture", "regression-guard"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "brief"],
+  "evidence_required": ["full VERIFY_CMD output (not a summary)", "list of new/changed tests", "pass/fail counts from the captured run"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": {
+    "dimensions": ["evidence", "review", "risks"],
+    "note": "Feeds Evidence with captured VERIFY_CMD output, and surfaces remaining gaps as open_risks rather than letting 'tests pass' close them silently."
+  },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger"],
+  "exit_criteria": ["VERIFY_CMD output captured as evidence", "no failing tests in the captured run", "regression note recorded in the brief"],
+  "close_contract": {
+    "activation_rules": {
+      "paths": ["/\\.(test|spec)\\./i", "__tests__/"],
+      "commands": ["/\\b(jest|vitest|pytest|go test)\\b/i", "npm test"]
+    },
+    "objective_proofs": [
+      { "proof_type": "verify", "strength": "standard" }
+    ]
+  }
+}

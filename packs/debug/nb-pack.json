@@ -1,0 +1,25 @@
+{
+  "$comment": "NB Pack — Debug. Scaffold: close_contract designed, not yet exercised end-to-end. Analytical-only by design. Validated against ../../core/pack-manifest.schema.json",
+  "id": "debug",
+  "name": "Debug Pack",
+  "description": "Root-cause discipline — proves the fix addresses the cause, not just the symptom, via a review that covers the cause->fix link.",
+  "domain": "debug",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["root-cause-trace"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "brief"],
+  "evidence_required": ["failing reproduction before the fix", "passing reproduction after the fix", "root-cause note linking cause to fix"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": { "dimensions": ["evidence", "review"], "note": "Honest scope: NB cannot machine-prove a root cause; it requires a cross-family review whose claims cover the cause->fix link, plus before/after repro evidence." },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger", "review_gate"],
+  "exit_criteria": ["before/after reproduction captured", "review covers the cause->fix link", "no symptom-only patch"],
+  "close_contract": {
+    "analytical_proofs": [ { "proof_type": "root-cause", "strength": "standard", "required_claims": ["cause-identified", "fix-addresses-cause"] } ]
+  }
+}

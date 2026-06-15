@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nb-harness/core/module-manifest.schema.json",
+  "title": "NB Harness Module Manifest",
+  "description": "The contract every NB module ships as nb-module.json. Without it a module is just a prompt bundle; this schema makes module boundaries machine-readable so 'run only security' works, and so the strength auto-judge (blueprint 3.9) can read each module's risk from permissions/side_effects.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "required_in",
+    "outputs",
+    "verify_cmd",
+    "failure_states",
+    "exit",
+    "permissions",
+    "side_effects",
+    "requires_approval",
+    "safety_gates"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Module identifier (e.g. design, implement, security)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name (optional)."
+    },
+    "required_in": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Required inputs (e.g. security <- code_path, design <- intent). Empty array = self-contained entry module."
+    },
+    "optional_in": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Optional inputs that deepen the result (synergy). e.g. security + design_docs -> structural (layer-3) checks."
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "artifact"],
+        "properties": {
+          "name": { "type": "string" },
+          "artifact": {
+            "type": "string",
+            "description": "Output path; may use the {WORKSPACE} variable."
+          }
+        }
+      },
+      "description": "Named output artifacts the next module can consume."
+    },
+    "verify_cmd": {
+      "type": ["string", "null"],
+      "description": "Command that verifies this module's own result. May use {VERIFY_CMD}. null when not applicable (e.g. design produces docs)."
+    },
+    "failure_states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["when", "action"],
+        "properties": {
+          "when": { "type": "string", "description": "Failure condition." },
+          "action": {
+            "type": "string",
+            "enum": ["STOP", "degrade", "retry"],
+            "description": "What the harness does when the condition hits."
+          },
+          "note": { "type": "string" }
+        }
+      },
+      "description": "Failure conditions plus what happens (STOP / degrade / retry)."
+    },
+    "exit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["success", "failure"],
+      "properties": {
+        "success": {
+          "type": "string",
+          "description": "Signal emitted on success; the next module reads this."
+        },
+        "failure": { "type": "string" }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["read", "write", "network", "exec", "install"]
+      },
+      "description": "Capabilities this module requests. Visible to AI and human so risk is explicit."
+    },
+    "side_effects": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Concrete side effects (writes files? network calls? external state change?)."
+    },
+    "install_deps": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "version": {
+            "type": "string",
+            "description": "Pinned version (blueprint 11.3 version pinning)."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["local", "global"],
+            "default": "local",
+            "description": "Prefer local over global (blueprint 11.3)."
+          }
+        }
+      },
+      "description": "Dependencies to install. If non-empty, the install-safety flow (blueprint 11.3) applies: show plan -> user approves -> pin version -> local."
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "description": "Whether execution needs explicit user approval before running (risky action = true). The strength auto-judge never auto-runs a true here (blueprint 3.9 / 11.2)."
+    },
+    "safety_gates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "self_check",
+          "security_floor",
+          "explicit_consent",
+          "ownership_proof",
+          "no_real_payment",
+          "no_destructive",
+          "result_redaction",
+          "rate_limit",
+          "domain_allowlist"
+        ]
+      },
+      "description": "Which safety gates apply (blueprint 3.5 self-check, 11.2 security execution gate)."
+    },
+    "modes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional execution modes at different strength (security: analysis / red_team_sim / sandbox_attack)."
+    }
+  }
+}

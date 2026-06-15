@@ -1,0 +1,8 @@
+{
+  "$comment": "NB Harness — install template. Merge into the target project's .claude/settings.json. The statusLine renders the NB HUD (stage / agent / context% / task). Requires Node.js on PATH.",
+  "statusLine": {
+    "type": "command",
+    "command": "node scripts/hud.mjs",
+    "padding": 0
+  }
+}

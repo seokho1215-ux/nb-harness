@@ -1,0 +1,11 @@
+# Advanced/team profile. The default experience stays automatic (core/strength.md).
+# Balanced mirrors NB's automatic behavior — a good starting point if you want to pin a profile.
+id: balanced
+name: Balanced
+description: The sensible default — review and evidence on real features, light touch on trivia.
+default_workflow_bias: standard-feature
+review_strictness: medium       # cross-family review on features
+evidence_strictness: medium     # shown verify output before "done"
+security_strictness: floor+module
+cross_family_required: true     # for implement/review when a second family is available
+human_brief_depth: standard

@@ -1,0 +1,25 @@
+{
+  "$comment": "NB Pack — Research. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "research",
+  "name": "Research Pack",
+  "description": "Source-discipline — proves claims are cited and cross-checked, not asserted, before a research output is done.",
+  "domain": "research",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["source-verify"],
+  "adds_workflows": [],
+  "produces_artifacts": ["review", "brief"],
+  "evidence_required": ["each material claim has a citation", "key claims cross-checked against a second source"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["open_risks"],
+  "harness_score_contribution": { "dimensions": ["review"], "note": "Feeds Review with a citation + cross-check pass so a research brief can't ship uncited assertions." },
+  "install_deps": [],
+  "permissions": ["read", "network"],
+  "safety_gates": ["self_check", "review_gate"],
+  "exit_criteria": ["every material claim cited", "key claims cross-checked", "uncertainties flagged"],
+  "close_contract": {
+    "analytical_proofs": [ { "proof_type": "sources-verified", "strength": "standard", "required_claims": ["claims-cited", "cross-checked"] } ]
+  }
+}

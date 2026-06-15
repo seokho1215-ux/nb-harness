@@ -1,0 +1,38 @@
+{
+  "$comment": "NB Pack — Security. Experimental: close_contract ships; the red/blue review is delegated to modules/security. Validated against ../../core/pack-manifest.schema.json",
+  "id": "security",
+  "name": "Security Pack",
+  "description": "Risk-class discipline — ties a change touching auth / secrets / payments to a real red/blue review before it can be called done.",
+  "domain": "security",
+  "status": "experimental",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "risk_receipt", "self_check", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "$adds_skills_comment": "Deliberately 0 pack skills: NB already ships the security capability as REAL artifacts — the core `security-gate` skill, `modules/security` (3-layer + red/blue two-round), `scripts/security-report-check.mjs`, and the security-sensitive workflow gate. A pack skill here would duplicate them. Do not add one (e.g. threat-surface/secret-scan/attack-defense-review) without first reporting the overlap vs modules/security.",
+  "adds_skills": [],
+  "adds_workflows": [],
+  "produces_artifacts": ["review", "decision", "brief"],
+  "evidence_required": ["a security-report.json that passes scripts/security-report-check.mjs (two-round cross-family role swap, or an explicitly-degraded single-family report)", "red/blue review artifact covering the changed risk surface", "no unresolved high/critical findings (or each accepted via a decision)"],
+  "review_gate": "cross_family_plus_human",
+  "approvals_required": ["any change to auth / secret / payment handling"],
+  "state_updates": ["open_risks", "drift_risks"],
+  "harness_score_contribution": {
+    "dimensions": ["review", "risks"],
+    "note": "Feeds Review with the red/blue artifact and keeps unresolved findings as open_risks instead of letting a security-relevant change close silently."
+  },
+  "install_deps": [],
+  "permissions": ["read"],
+  "safety_gates": ["self_check", "review_gate", "security_floor"],
+  "exit_criteria": ["security-report-check passes (two-round cross-family role swap, no unresolved high/critical)", "red/blue review covers the changed risk surface", "brief notes the residual risk"],
+  "close_contract": {
+    "activation_rules": {
+      "paths": ["/\\b(auth|session|jwt|oauth|rls)\\b/i", "/\\.env/i", "/\\b(secret|credential|token)\\b/i", "/\\b(stripe|billing|payment)\\b/i"],
+      "commands": []
+    },
+    "objective_proofs": [
+      { "proof_type": "security-report-check", "strength": "full" }
+    ],
+    "analytical_proofs": [
+      { "proof_type": "red-blue-covered", "strength": "full", "required_claims": ["attack-surface-reviewed", "no-blocking-findings"] }
+    ]
+  }
+}

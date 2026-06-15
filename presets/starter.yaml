@@ -1,0 +1,11 @@
+# Advanced/team profile. The default experience stays automatic (core/strength.md);
+# presets only matter if you opt in. They bias defaults — they do not remove the safety floor.
+id: starter
+name: Starter
+description: Lightest touch — quick, low-risk work. The safety floor still holds.
+default_workflow_bias: light-change
+review_strictness: low          # cross-family review only when the task is risky
+evidence_strictness: low        # show verify output when a build/test applies
+security_strictness: floor      # safety floor only; the full security module kicks in when risky
+cross_family_required: false
+human_brief_depth: short        # one or two plain lines

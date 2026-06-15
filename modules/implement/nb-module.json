@@ -1,0 +1,22 @@
+{
+  "$comment": "NB Harness — Implement module manifest. Validated against ../../core/module-manifest.schema.json",
+  "id": "implement",
+  "name": "Implement",
+  "required_in": ["design_docs"],
+  "optional_in": ["project_docs"],
+  "outputs": [
+    { "name": "code", "artifact": "(project source tree)" },
+    { "name": "verification_evidence", "artifact": "{WORKSPACE}/pipeline/{feature}/03-tasks/<task>.evidence.md" }
+  ],
+  "verify_cmd": "{VERIFY_CMD}",
+  "failure_states": [
+    { "when": "{VERIFY_CMD} fails (build/test/lint not green)", "action": "STOP", "note": "no 'done' claim without evidence (self-check)" },
+    { "when": "context budget exceeds 40% mid-task", "action": "STOP", "note": "should have been split at the design stage" }
+  ],
+  "exit": { "success": "implement.ok", "failure": "implement.fail" },
+  "permissions": ["read", "write", "exec"],
+  "side_effects": ["writes code into the project source tree", "runs build/test/lint commands"],
+  "install_deps": [],
+  "requires_approval": false,
+  "safety_gates": ["self_check", "security_floor"]
+}

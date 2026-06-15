@@ -1,0 +1,26 @@
+{
+  "$comment": "NB Pack — MCP. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "mcp",
+  "name": "MCP Pack",
+  "description": "Tool-connection discipline — proves an MCP wiring actually works and its permissions are sane before done.",
+  "domain": "mcp",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "risk_receipt", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["mcp-permissions-review"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "decision", "brief"],
+  "evidence_required": ["MCP server connection/validation output", "the permissions/scopes granted, reviewed"],
+  "review_gate": "cross_family",
+  "approvals_required": ["granting an MCP server new scopes/permissions"],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": { "dimensions": ["evidence", "risks"], "note": "Feeds Evidence with the connection test and surfaces over-broad MCP permissions as risk instead of trusting the config." },
+  "install_deps": [],
+  "permissions": ["read", "network"],
+  "safety_gates": ["self_check", "evidence_ledger", "explicit_consent"],
+  "exit_criteria": ["MCP connection validated with captured output", "granted permissions reviewed and minimal"],
+  "close_contract": {
+    "activation_rules": { "paths": ["mcp.json", "/mcp[_-]?config/i", "/\\.mcp\\b/"], "commands": ["/\\bmcp\\b/i"] },
+    "objective_proofs": [ { "proof_type": "mcp-validate", "strength": "standard" } ]
+  }
+}

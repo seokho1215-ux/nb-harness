@@ -1,0 +1,6 @@
+{
+  "statusLine": { "type": "command", "command": "echo my-own-statusline" },
+  "hooks": {
+    "Stop": [ { "hooks": [ { "type": "command", "command": "echo my-own-stop-hook" } ] } ]
+  }
+}

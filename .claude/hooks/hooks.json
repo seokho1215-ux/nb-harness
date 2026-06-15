@@ -1,0 +1,20 @@
+{
+  "$comment": "NB hooks. Merge this into your project's .claude/settings.json under \"hooks\". Conservative: they guide and record, they do not hard-enforce. Requires Node.js on PATH.",
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "node .claude/hooks/user-prompt-submit.mjs" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash|Write|Edit", "hooks": [ { "type": "command", "command": "node .claude/hooks/pre-tool-use.mjs" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash|Write|Edit", "hooks": [ { "type": "command", "command": "node .claude/hooks/post-tool-use.mjs" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "node .claude/hooks/stop.mjs" } ] }
+    ],
+    "PreCompact": [
+      { "hooks": [ { "type": "command", "command": "node .claude/hooks/pre-compact.mjs" } ] }
+    ]
+  }
+}

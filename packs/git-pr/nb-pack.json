@@ -1,0 +1,26 @@
+{
+  "$comment": "NB Pack — Git/PR. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "git-pr",
+  "name": "Git/PR Pack",
+  "description": "PR discipline — the PR is where 'done' is claimed; proves the description matches the diff before merge.",
+  "domain": "git",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["pr-describe"],
+  "adds_workflows": [],
+  "produces_artifacts": ["review", "brief"],
+  "evidence_required": ["PR description checked against the actual diff", "linked task/intent referenced"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["open_risks"],
+  "harness_score_contribution": { "dimensions": ["review", "brief"], "note": "The highest-frequency firewall checkpoint: feeds Review/Brief with a PR-description-vs-diff check so 'done' claimed in a PR matches what actually changed." },
+  "install_deps": [],
+  "permissions": ["read", "exec"],
+  "safety_gates": ["self_check", "review_gate"],
+  "exit_criteria": ["PR description matches the diff", "task/intent linked", "brief attached"],
+  "close_contract": {
+    "activation_rules": { "paths": [], "commands": ["/\\bgit push\\b/", "/\\bgh pr\\b/"] },
+    "analytical_proofs": [ { "proof_type": "pr-covers-diff", "strength": "standard", "required_claims": ["description-matches-diff"] } ]
+  }
+}

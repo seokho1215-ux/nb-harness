@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nb/.nb/state.schema.json",
+  "title": "NB state.json",
+  "description": "Shape of NB runtime state. Reference/editor schema; scripts/validate-state.mjs enforces the state-machine rules dependency-free.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["current_mode"],
+  "properties": {
+    "harness_version": { "type": "string" },
+    "current_mode": { "enum": ["idle", "design", "implement", "review", "security", "brief", "done", "blocked"] },
+    "current_workflow": { "type": ["string", "null"] },
+    "workflow_reason": { "type": ["string", "null"] },
+    "escalation_reason": { "type": ["string", "null"] },
+    "current_task": { "type": ["string", "null"] },
+    "current_task_slug": { "type": ["string", "null"] },
+    "strength_level": { "type": ["string", "null"] },
+    "active_agent_lane": { "type": ["string", "null"] },
+    "active_gates": { "type": "array", "items": { "type": "string" } },
+    "intent_summary": { "type": ["string", "null"] },
+    "non_goals": { "type": "array", "items": { "type": "string" } },
+    "definition_of_done": { "type": ["string", "null"] },
+    "taste_notes": { "type": ["string", "null"] },
+    "design_docs": { "type": ["string", "null"], "description": "Override dir for the planner's 3-tier docs (default pipeline/<slug>). validate-state requires 01/02/03 to exist in implement..done." },
+    "drift_risks": { "type": "array", "items": { "type": "string" } },
+    "model_policy": {
+      "type": ["object", "null"],
+      "description": "Derived portable model tier per lane (scripts/model-policy.mjs). Raise-only; lowering below the derived floor needs a model-degrade decision.",
+      "properties": {
+        "planner": { "enum": ["fast", "balanced", "strong", "strongest"] },
+        "implement": { "enum": ["fast", "balanced", "strong", "strongest"] },
+        "review": { "enum": ["fast", "balanced", "strong", "strongest"] },
+        "security": { "type": ["string", "null"], "enum": ["fast", "balanced", "strong", "strongest", null] },
+        "family": { "enum": ["single", "cross-family", "two-family"] }
+      }
+    },
+    "last_review": { "type": ["string", "null"] },
+    "last_evidence": { "type": ["string", "null"] },
+    "last_brief": { "type": ["string", "null"] },
+    "last_security": { "type": ["string", "null"] },
+    "preset": {
+      "type": ["object", "null"],
+      "description": "Applied gate profile (scripts/apply-preset.mjs). gates is the raise-only enforceable set honored by /nb:close + harness-score.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "applied_at": { "type": "string" },
+        "gates": {
+          "type": "object",
+          "properties": {
+            "require_artifacts": { "type": "array", "items": { "enum": ["evidence", "review", "brief"] } },
+            "min_strength": { "type": ["string", "null"], "enum": ["light", "standard", "full", null] },
+            "cross_family": { "type": "boolean" },
+            "workflow_bias": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "open_risks": { "type": "array", "items": { "type": "string" } },
+    "blocked_reason": { "type": ["string", "null"] },
+    "updated_at": { "type": ["string", "null"] }
+  }
+}

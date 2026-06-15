@@ -1,0 +1,26 @@
+{
+  "name": "nb",
+  "displayName": "NB Harness",
+  "description": "Portable AI work harness with a Claude Code adapter: intent lock, evidence ledger, review gates, harness score, and plain-language briefs for low-floor, high-ceiling AI work.",
+  "version": "0.1.0",
+  "author": { "name": "nobody_builder" },
+  "license": "MIT",
+  "keywords": ["ai-coding", "harness", "portable", "evidence", "review-gate", "workflow", "claude-code", "adapter", "vibe-coding", "safety"],
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/.claude/hooks/user-prompt-submit.mjs\"" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash|Write|Edit", "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/.claude/hooks/pre-tool-use.mjs\"" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash|Write|Edit", "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/.claude/hooks/post-tool-use.mjs\"" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/.claude/hooks/stop.mjs\"" } ] }
+    ],
+    "PreCompact": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/.claude/hooks/pre-compact.mjs\"" } ] }
+    ]
+  }
+}

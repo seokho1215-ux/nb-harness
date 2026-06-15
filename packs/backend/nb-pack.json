@@ -1,0 +1,27 @@
+{
+  "$comment": "NB Pack — Backend. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "backend",
+  "name": "Backend Pack",
+  "description": "API/service discipline — proves the API contract is honored and errors don't leak internals before done.",
+  "domain": "backend",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["api-contract-review"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "brief"],
+  "evidence_required": ["test output for the changed endpoints", "request/response contract diff", "error-path responses (no internal leakage)"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": { "dimensions": ["evidence", "review"], "note": "Feeds Evidence with endpoint test output and Review with an API-contract-compliance check instead of trusting a green build." },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger", "review_gate"],
+  "exit_criteria": ["endpoint tests captured", "API contract honored", "error paths don't leak internals"],
+  "close_contract": {
+    "activation_rules": { "paths": ["/\\b(api|route|router|controller|handler|endpoint)\\b/i"], "commands": ["/\\b(localhost|127\\.0\\.0\\.1)\\b/"] },
+    "objective_proofs": [ { "proof_type": "tests", "strength": "standard" } ],
+    "analytical_proofs": [ { "proof_type": "contract-compliance", "strength": "standard", "required_claims": ["api-contract-honored", "errors-not-leaked"] } ]
+  }
+}

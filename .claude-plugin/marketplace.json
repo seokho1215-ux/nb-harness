@@ -1,0 +1,15 @@
+{
+  "name": "nb-harness",
+  "owner": { "name": "nobody_builder" },
+  "metadata": {
+    "description": "NB Harness — a portable AI work harness with a Claude Code adapter (low-floor, high-ceiling).",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "nb",
+      "source": "./",
+      "description": "Portable AI work harness with a Claude Code adapter: intent lock, evidence ledger, review gates, harness score, and plain-language briefs for low-floor, high-ceiling AI work."
+    }
+  ]
+}

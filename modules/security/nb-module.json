@@ -1,0 +1,22 @@
+{
+  "$comment": "NB Harness — Security module manifest (NB's standout differentiator). Validated against ../../core/module-manifest.schema.json",
+  "id": "security",
+  "name": "Security (Red/Blue cross-family)",
+  "required_in": ["code_path"],
+  "optional_in": ["design_docs", "implement_log"],
+  "outputs": [
+    { "name": "security_report", "artifact": "{WORKSPACE}/reviews/security-report.md" }
+  ],
+  "verify_cmd": null,
+  "failure_states": [
+    { "when": "a critical/high finding is confirmed", "action": "STOP", "note": "surface to the user; never silently pass" },
+    { "when": "only one AI family is available (no cross-family)", "action": "degrade", "note": "split agents by perspective (OWASP / attacker-type / 3 layers); honestly weaker than heterogeneous" }
+  ],
+  "exit": { "success": "security.ok", "failure": "security.fail" },
+  "permissions": ["read"],
+  "side_effects": ["Analysis Mode: reads code/config only", "Sandbox Attack Mode: attacks an isolated COPY only, never the original"],
+  "install_deps": [],
+  "requires_approval": true,
+  "safety_gates": ["explicit_consent", "ownership_proof", "no_real_payment", "no_destructive", "result_redaction"],
+  "modes": ["analysis", "red_team_sim", "sandbox_attack"]
+}

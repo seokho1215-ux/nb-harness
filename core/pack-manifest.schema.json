@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nb-harness/core/pack-manifest.schema.json",
+  "title": "NB Harness Pack Manifest",
+  "description": "The contract every NB Pack ships as nb-pack.json. A pack extends NB into a domain (product, frontend, testing, ...) but stays SUBORDINATE to Core: it must declare which Core rules it rides on, which workflows it adds, what artifacts it produces, what evidence is required, which review gate applies, how it updates .nb/state, and how it feeds the Harness Score. If a pack's work cannot be recorded, reviewed, and briefed, it does not belong in NB. scripts/validate-packs.mjs enforces these rules dependency-free.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "description",
+    "domain",
+    "status",
+    "requires_core",
+    "adds_agents",
+    "adds_skills",
+    "adds_workflows",
+    "produces_artifacts",
+    "evidence_required",
+    "review_gate",
+    "approvals_required",
+    "state_updates",
+    "harness_score_contribution",
+    "install_deps",
+    "permissions",
+    "safety_gates",
+    "exit_criteria"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Pack identifier. MUST match the folder name under packs/ (e.g. packs/product -> id 'product')."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable pack name (e.g. 'Product Pack')."
+    },
+    "description": {
+      "type": "string",
+      "description": "One line: the domain capability this pack adds and the Core discipline it leans on."
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain this pack covers (e.g. product, frontend, testing). Free-form but should be a single word."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["scaffold", "experimental", "stable"],
+      "description": "Maturity marker. 'scaffold' = manifest + docs prove the architecture, behavior not yet implemented. 'experimental' = some declared additions ship and run but the contract may still change. 'stable' = additions ship and the contract is settled. Sample packs are scaffolds; do not claim 'experimental'/'stable' without shipping the declared additions."
+    },
+    "requires_core": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "intent_lock",
+          "intent_drift_report",
+          "evidence_ledger",
+          "harness_score",
+          "done_claim_firewall",
+          "risk_receipt",
+          "install_safety",
+          "self_check",
+          "review_gate",
+          "state_machine",
+          "artifact_registry",
+          "human_brief"
+        ]
+      },
+      "description": "Core control rules this pack depends on (snake_case ids). Every pack MUST include intent_lock, evidence_ledger, review_gate, and harness_score — a pack that does not ride those four is not subordinate to Core and is rejected. Packs should also pass through human_brief: every pack's work ends in a plain-language brief."
+    },
+    "adds_agents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pack-scoped agent names this pack adds (or WILL add — for scaffolds these are declared intent, not shipped files). Pack agents are namespaced under the pack, never new root agents."
+    },
+    "adds_skills": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pack-scoped skill names this pack adds (declared intent for scaffolds). A pack skill must create automatic intervention not already covered by Core."
+    },
+    "adds_workflows": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Workflows this pack adds or extends. Pack workflows still run the Core gates; they only change the task flow for the domain."
+    },
+    "produces_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["intent", "evidence", "review", "brief", "decision", "session", "log"]
+      },
+      "description": "Artifact-ledger types this pack writes to .nb/. Must use the Core artifact vocabulary — a pack does not invent its own artifact types."
+    },
+    "evidence_required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "What evidence must exist before this pack's work can be claimed done (e.g. 'VERIFY_CMD output', 'before/after screenshot'). Non-empty: a pack with no required evidence cannot be briefed honestly."
+    },
+    "review_gate": {
+      "type": "string",
+      "enum": ["cross_family", "cross_family_plus_human", "single_family", "human_required"],
+      "description": "The review gate this pack applies. cross_family is NB's default (two different model families). cross_family_plus_human stacks a human sign-off (e.g. taste check) on top. human_required means a human must approve before done."
+    },
+    "approvals_required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "User approvals this pack may require before it proceeds (e.g. 'scope change beyond definition_of_done', 'visual sign-off'). May be empty."
+    },
+    "state_updates": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": ".nb/state.json fields this pack reads or writes (e.g. definition_of_done, taste_notes, last_evidence). Keeps the State Machine the single source of truth — a pack does not keep hidden state."
+    },
+    "harness_score_contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["plan", "intent", "evidence", "review", "brief", "risks"]
+          },
+          "description": "Which Harness Score dimensions this pack feeds. A pack cannot move the score by inventing a new dimension; it strengthens existing ones."
+        },
+        "note": {
+          "type": "string",
+          "description": "How the pack tightens those dimensions."
+        }
+      },
+      "description": "How this pack contributes to the Harness Score. The score stays Core-owned; the pack only feeds known dimensions."
+    },
+    "install_deps": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "version": { "type": "string", "description": "Pinned version (Install Safety)." },
+          "scope": {
+            "type": "string",
+            "enum": ["local", "global"],
+            "default": "local",
+            "description": "Prefer local over global (Install Safety)."
+          }
+        }
+      },
+      "description": "Dependencies the pack needs. If non-empty, Core's Install Safety flow applies: show plan -> user approves -> pin version -> prefer local."
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["read", "write", "network", "exec", "install"]
+      },
+      "description": "Capabilities the pack requests. Same vocabulary as a module manifest, so risk stays explicit to AI and human."
+    },
+    "safety_gates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "self_check",
+          "intent_lock",
+          "evidence_ledger",
+          "review_gate",
+          "harness_score",
+          "explicit_consent",
+          "no_destructive",
+          "result_redaction",
+          "security_floor"
+        ]
+      },
+      "description": "Which Core safety/control gates apply to this pack's work. A pack can only request from the Core gate set — it cannot weaken or bypass the safety floor."
+    },
+    "exit_criteria": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "What marks this pack's work complete and ready to claim done. Non-empty: a pack that cannot say when it is finished does not belong in NB."
+    },
+    "close_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The machine-readable contract /nb:close enforces for this pack (the SOT; evidence_required is the human-readable derivative). FLAT shape, matching what scripts/lib/close-engine.mjs + scripts/close.mjs actually read. Optional for scaffold/experimental packs; REQUIRED for status:stable (scripts/validate-packs.mjs enforces that, and that a stable contract carries at least one proof OR an explicit floor_only flag). Subjective/taste gates are NOT here — they ride the Core category-floor decision path; analytical proofs cover reasoning/review claims.",
+      "properties": {
+        "activation_rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "How /nb:close OBSERVES this pack as active (beyond an explicit declaration): match hook-logged file paths / commands (+ git diff). Each rule is a SUBSTRING matcher by default; a string delimited like /pattern/flags is compiled to a RegExp at load (validator checks it compiles). The AI can add a pack, never remove one — activation is recomputed at close.",
+          "properties": {
+            "paths": { "type": "array", "items": { "type": "string" } },
+            "commands": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "objective_proofs": {
+          "type": "array",
+          "description": "Machine-verifiable proofs: a command that ran (reconciled against the hook tool-event log). Verified by verifyProof.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["proof_type"],
+            "properties": {
+              "proof_type": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "description": "Unique within the pack (across objective+analytical). No dots — evidence_ref:proof:<pack>.<type> uses '.' as the pack/type separator." },
+              "strength": { "type": "string", "enum": ["light", "standard", "full"], "description": "Required iff effective strength (max of task strength and category floor) >= this." }
+            }
+          }
+        },
+        "analytical_proofs": {
+          "type": "array",
+          "description": "Provenance-bound (NOT correctness-proven) coverage proofs: a hash-bound cross-family review whose covers_claims resolve to verified evidence. Verified by verifyAnalytical.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["proof_type", "required_claims"],
+            "properties": {
+              "proof_type": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+              "strength": { "type": "string", "enum": ["light", "standard", "full"] },
+              "required_claims": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "description": "claim_id the analytical proof must cover. Unique within the pack. No dots." }
+              }
+            }
+          }
+        },
+        "floor_only": { "type": "boolean", "description": "A status:stable pack that legitimately ships with NO proof and relies solely on the Core category floor. Must be paired with floor_only_reason. Without this flag, a stable pack with no proofs is invalid." },
+        "floor_only_reason": { "type": "string", "description": "Why this stable pack needs no objective/analytical proof (category-floor decision is sufficient)." }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "profile": "advisory",
+  "description": "Guide and record only. No prompts, no blocks. For trusted, fast loops.",
+  "install": "advise",
+  "destructive": "advise",
+  "network": "advise",
+  "secrets": "advise",
+  "stop_requires_evidence": false
+}

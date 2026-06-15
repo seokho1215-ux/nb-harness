@@ -1,0 +1,9 @@
+{
+  "profile": "approval",
+  "description": "Ask before installs, destructive, network, or other risky actions. The conservative default — approval-first, not hostile.",
+  "install": "ask",
+  "destructive": "ask",
+  "network": "ask",
+  "secrets": "ask",
+  "stop_requires_evidence": false
+}

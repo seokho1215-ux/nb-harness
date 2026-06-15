@@ -1,0 +1,10 @@
+NB Harness Score
+Task: settings-name
+Workflow: standard-feature
+Plan: yes
+Intent: yes
+Evidence: yes
+Review: yes
+Brief: yes
+Open risks: 1
+Status: READY

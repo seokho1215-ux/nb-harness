@@ -1,0 +1,38 @@
+{
+  "$comment": "NB Pack — Data. Experimental: close_contract ships and runs; pack-scoped skills implemented (rollback-proof, schema-diff), no per-domain agents/workflows. Validated against ../../core/pack-manifest.schema.json",
+  "id": "data",
+  "name": "Data Pack",
+  "description": "Migration & schema discipline — proves a change is reversible and loses no data before it can be called done.",
+  "domain": "data",
+  "status": "experimental",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "risk_receipt", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["rollback-proof", "schema-diff"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "decision", "brief"],
+  "evidence_required": ["migration up output", "migration down (rollback) output", "row-count / no-data-loss check"],
+  "review_gate": "cross_family",
+  "approvals_required": ["any destructive migration (drop / truncate)"],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": {
+    "dimensions": ["evidence", "risks", "review"],
+    "note": "Feeds Evidence with up+down migration output and surfaces irreversible / data-loss risk instead of trusting a green migrate."
+  },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger", "no_destructive"],
+  "exit_criteria": ["migration up and down both captured as evidence", "no data loss shown", "rollback safety reviewed"],
+  "close_contract": {
+    "activation_rules": {
+      "paths": ["/migrat/i", "/\\.sql$/i", "prisma", "drizzle", "/\\bschema\\b/i"],
+      "commands": ["/\\b(migrat|prisma|drizzle|psql|mysql|mongo)\\b/i"]
+    },
+    "objective_proofs": [
+      { "proof_type": "migration-up", "strength": "full" },
+      { "proof_type": "migration-down", "strength": "full" }
+    ],
+    "analytical_proofs": [
+      { "proof_type": "rollback-safety", "strength": "full", "required_claims": ["reversible", "no-data-loss"] }
+    ]
+  }
+}

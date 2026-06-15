@@ -1,0 +1,34 @@
+{
+  "$comment": "NB Pack — Product. Experimental: close_contract ships and runs; pack-scoped skill implemented (definition-of-done), no per-domain agents/workflows. Validated against ../../core/pack-manifest.schema.json",
+  "id": "product",
+  "name": "Product Pack",
+  "description": "Scope & definition-of-done discipline for product work — keeps intent tight and stops scope creep before it ships.",
+  "domain": "product",
+  "status": "experimental",
+  "requires_core": ["intent_lock", "intent_drift_report", "evidence_ledger", "harness_score", "done_claim_firewall", "review_gate", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["definition-of-done"],
+  "adds_workflows": [],
+  "produces_artifacts": ["intent", "decision", "brief"],
+  "evidence_required": ["definition_of_done recorded in .nb/state", "non_goals list recorded", "acceptance checklist with every item checked"],
+  "review_gate": "cross_family",
+  "approvals_required": ["any scope change beyond the recorded definition_of_done"],
+  "state_updates": ["intent_summary", "definition_of_done", "non_goals", "drift_risks"],
+  "harness_score_contribution": {
+    "dimensions": ["plan", "intent", "review"],
+    "note": "Tightens Intent by forcing a written definition_of_done + non_goals, and feeds Plan/Review by checking each acceptance item before done is claimable."
+  },
+  "install_deps": [],
+  "permissions": ["read", "write"],
+  "safety_gates": ["self_check", "intent_lock"],
+  "exit_criteria": ["definition_of_done met and every acceptance item checked", "no open scope-drift risks", "brief written"],
+  "close_contract": {
+    "activation_rules": {
+      "paths": ["/\\b(spec|prd|requirements?)\\b/i", "definition_of_done"],
+      "commands": []
+    },
+    "analytical_proofs": [
+      { "proof_type": "dod-covered", "strength": "standard", "required_claims": ["definition-of-done-met", "non-goals-respected"] }
+    ]
+  }
+}

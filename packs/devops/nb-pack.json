@@ -1,0 +1,26 @@
+{
+  "$comment": "NB Pack — DevOps. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "devops",
+  "name": "DevOps Pack",
+  "description": "Deploy discipline — proves the pipeline is green and the change is reversible before a deploy is called done.",
+  "domain": "devops",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "risk_receipt", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["pipeline-proof"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "decision", "brief"],
+  "evidence_required": ["CI/pipeline output (green)", "rollback/revert path noted"],
+  "review_gate": "cross_family",
+  "approvals_required": ["any production deploy"],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": { "dimensions": ["evidence", "risks"], "note": "Feeds Evidence with pipeline output and surfaces deploy/rollback risk instead of trusting a green button." },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger", "explicit_consent"],
+  "exit_criteria": ["pipeline green output captured", "rollback path noted", "production deploy approved"],
+  "close_contract": {
+    "activation_rules": { "paths": ["Dockerfile", "docker-compose", "/\\.github\\/workflows/", "vercel", "netlify", "/\\b(k8s|helm|terraform)\\b/i"], "commands": ["/\\b(docker|kubectl|terraform|helm|vercel|netlify|wrangler)\\b/i"] },
+    "objective_proofs": [ { "proof_type": "pipeline", "strength": "full" } ]
+  }
+}

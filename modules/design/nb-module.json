@@ -1,0 +1,23 @@
+{
+  "$comment": "NB Harness — Design module manifest. Validated against ../../core/module-manifest.schema.json",
+  "id": "design",
+  "name": "Design (Planner)",
+  "required_in": ["intent"],
+  "optional_in": ["project_docs", "existing_code"],
+  "outputs": [
+    { "name": "architecture", "artifact": "{WORKSPACE}/pipeline/{feature}/01-architecture.md" },
+    { "name": "module_contract", "artifact": "{WORKSPACE}/pipeline/{feature}/02-module.md" },
+    { "name": "tasks", "artifact": "{WORKSPACE}/pipeline/{feature}/03-tasks/" },
+    { "name": "meta", "artifact": "{WORKSPACE}/pipeline/{feature}/meta.md" }
+  ],
+  "verify_cmd": null,
+  "failure_states": [
+    { "when": "a task's context budget exceeds 40% of the model window", "action": "STOP", "note": "split the task further before implementing (3-tier rule)" }
+  ],
+  "exit": { "success": "design.ok", "failure": "design.fail" },
+  "permissions": ["read", "write"],
+  "side_effects": ["writes design docs under {WORKSPACE}/pipeline/{feature}/"],
+  "install_deps": [],
+  "requires_approval": false,
+  "safety_gates": ["self_check"]
+}

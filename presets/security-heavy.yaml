@@ -1,0 +1,10 @@
+# Advanced/team profile. The default experience stays automatic (core/strength.md).
+id: security-heavy
+name: Security-heavy
+description: For risk-laden codebases — the security gate runs broadly, two-round red/blue by default.
+default_workflow_bias: security-sensitive
+review_strictness: high
+evidence_strictness: high
+security_strictness: max        # two-round cross-family, attack-gate ready
+cross_family_required: true
+human_brief_depth: standard

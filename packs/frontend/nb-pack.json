@@ -1,0 +1,38 @@
+{
+  "$comment": "NB Pack — Frontend. Experimental: close_contract ships and runs; pack-scoped skills implemented (human-taste-check, screenshot-evidence), no per-domain agents/workflows. Taste is a skill/decision, NOT a contract proof. Validated against ../../core/pack-manifest.schema.json",
+  "id": "frontend",
+  "name": "Frontend Pack",
+  "description": "Human Taste Check + screenshot evidence for UI work — catches UX drift that passing tests can't see.",
+  "domain": "frontend",
+  "status": "experimental",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "risk_receipt", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["human-taste-check", "screenshot-evidence"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "brief"],
+  "evidence_required": ["before/after screenshot of the changed view", "VERIFY_CMD output (build or component test)", "taste_notes recorded in .nb/state"],
+  "review_gate": "cross_family_plus_human",
+  "approvals_required": ["visual sign-off before claiming done"],
+  "state_updates": ["taste_notes", "drift_risks", "last_evidence"],
+  "harness_score_contribution": {
+    "dimensions": ["evidence", "review"],
+    "note": "Strengthens Evidence with a real screenshot (not a claim) and stacks a human taste sign-off onto the cross-family Review gate."
+  },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "review_gate", "explicit_consent"],
+  "exit_criteria": ["before/after screenshots captured and recorded as evidence", "human taste sign-off recorded as a decision", "cross-family review PASS"],
+  "close_contract": {
+    "activation_rules": {
+      "paths": ["/\\.(tsx|jsx|vue|svelte)$/i", "/\\.(css|scss|sass)$/i", "components/"],
+      "commands": []
+    },
+    "objective_proofs": [
+      { "proof_type": "build", "strength": "standard" },
+      { "proof_type": "a11y", "strength": "standard" }
+    ],
+    "analytical_proofs": [
+      { "proof_type": "spec-fidelity", "strength": "standard", "required_claims": ["acceptance-items-covered"] }
+    ]
+  }
+}

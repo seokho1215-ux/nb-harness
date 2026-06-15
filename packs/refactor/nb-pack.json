@@ -1,0 +1,26 @@
+{
+  "$comment": "NB Pack — Refactor. Scaffold: close_contract designed, not yet exercised end-to-end. Validated against ../../core/pack-manifest.schema.json",
+  "id": "refactor",
+  "name": "Refactor Pack",
+  "description": "Behavior-equivalence discipline — proves the refactor changed structure, not behavior, before done.",
+  "domain": "refactor",
+  "status": "scaffold",
+  "requires_core": ["intent_lock", "evidence_ledger", "harness_score", "review_gate", "done_claim_firewall", "state_machine", "artifact_registry", "human_brief"],
+  "adds_agents": [],
+  "adds_skills": ["equivalence-check"],
+  "adds_workflows": [],
+  "produces_artifacts": ["evidence", "review", "brief"],
+  "evidence_required": ["test suite output BEFORE the refactor", "test suite output AFTER the refactor (same result)", "no behavior change noted"],
+  "review_gate": "cross_family",
+  "approvals_required": [],
+  "state_updates": ["last_evidence", "open_risks"],
+  "harness_score_contribution": { "dimensions": ["evidence", "review"], "note": "Feeds Evidence with before/after test parity and Review with an equivalence check, so a 'cleanup' can't silently change behavior." },
+  "install_deps": [],
+  "permissions": ["read", "write", "exec"],
+  "safety_gates": ["self_check", "evidence_ledger", "review_gate"],
+  "exit_criteria": ["before and after test runs captured and equal", "behavior unchanged per review"],
+  "close_contract": {
+    "objective_proofs": [ { "proof_type": "tests-before", "strength": "standard" }, { "proof_type": "tests-after", "strength": "standard" } ],
+    "analytical_proofs": [ { "proof_type": "equivalence", "strength": "standard", "required_claims": ["behavior-unchanged"] } ]
+  }
+}

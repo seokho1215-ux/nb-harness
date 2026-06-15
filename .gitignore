@@ -1,0 +1,43 @@
+# dependencies
+node_modules/
+
+# env / secrets — never commit
+.env
+.env.*
+*.key
+*.pem
+
+# logs
+*.log
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# editor config (per-user, not part of the harness)
+.obsidian/
+.vscode/
+.idea/
+
+# NB runtime state & artifacts (the .example + .gitkeep are committed; live contents are not)
+.nb/state.json
+.nb/artifacts.jsonl
+.nb/sessions/*
+.nb/evidence/*
+.nb/reviews/*
+.nb/briefs/*
+.nb/decisions/*
+.nb/logs/*
+.nb/proofs/*
+!.nb/**/.gitkeep
+
+# NB sandbox-attack working copies — never commit attack artifacts or copied secrets
+sandbox/
+*.sandbox/
+
+# dogfood sandboxes — local scratch for driving NB through a task by hand (keep locally, don't commit)
+dogfood/
+dogfood-codex/
+
+# redaction safety — never commit un-redacted raw security reports
+reviews/*.raw.md
