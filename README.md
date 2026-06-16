@@ -3,6 +3,7 @@
 ## Who is this for?
 
 🔰 Non-developers → Start here: [examples/first-15-minutes.md](examples/first-15-minutes.md)
+
 ⚙️ Developers → Jump to: [Install](#install)
 
 > **A low-floor, high-ceiling, portable AI work harness.** Starts simple — fewer decisions, a plain-language brief, automatic strength judgment — and scales into structured, reviewable, evidence-driven workflows. You decide direction, approval, and stop/go; NB handles strength judgment, planning discipline, agent routing, safety gates, cross-family review, evidence capture, state, and the brief.
