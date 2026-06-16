@@ -1,5 +1,10 @@
 # 🐣 NB Harness (Newbie Harness)
 
+## Who is this for?
+
+🔰 Non-developers → Start here: [examples/first-15-minutes.md](examples/first-15-minutes.md)
+⚙️ Developers → Jump to: [Install](#install)
+
 > **A low-floor, high-ceiling, portable AI work harness.** Starts simple — fewer decisions, a plain-language brief, automatic strength judgment — and scales into structured, reviewable, evidence-driven workflows. You decide direction, approval, and stop/go; NB handles strength judgment, planning discipline, agent routing, safety gates, cross-family review, evidence capture, state, and the brief.
 
 **The kick — a completion firewall:** NB doesn't just ask before risky actions; it **blocks false "done" claims.** A task can't be called done until *its own* evidence, review, and brief exist — `/nb:close` enforces it, and rejects another task's stale files. [See it in 10 seconds →](examples/fake-done-firewall/)
