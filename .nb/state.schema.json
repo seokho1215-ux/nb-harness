@@ -21,6 +21,9 @@
     "non_goals": { "type": "array", "items": { "type": "string" } },
     "definition_of_done": { "type": ["string", "null"] },
     "taste_notes": { "type": ["string", "null"] },
+    "core_value": { "type": "array", "items": { "type": "string" }, "description": "The point of what the user is building (core/scope-value.md). The planner may not move these out of the first cut without asking / a scope-change decision. Optional — product work captures it." },
+    "must_preserve": { "type": "array", "items": { "type": "string" }, "description": "Experience/behavior that must not be dropped. Optional." },
+    "defer_candidates": { "type": "array", "items": { "type": "string" }, "description": "Items the user has approved to push to a later phase. Optional." },
     "design_docs": { "type": ["string", "null"], "description": "Override dir for the planner's 3-tier docs (default pipeline/<slug>). validate-state requires 01/02/03 to exist in implement..done." },
     "drift_risks": { "type": "array", "items": { "type": "string" } },
     "model_policy": {

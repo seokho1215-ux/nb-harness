@@ -20,7 +20,7 @@ const task = flag('--task');
 const intent = flag('--intent');
 const dod = flag('--dod');
 if (!task || !task.trim()) {
-  console.error('usage: node scripts/intent-lock.mjs --task <slug> --intent "<outcome>" --dod "<done when…>" [--non-goals "a; b"] [--must-not-change "src/auth/; /\\.lock$/"] [--taste "…"]');
+  console.error('usage: node scripts/intent-lock.mjs --task <slug> --intent "<outcome>" --dod "<done when…>" [--non-goals "a; b"] [--must-not-change "src/auth/; /\\.lock$/"] [--taste "…"] [--core-value "the point of the thing; …"] [--must-preserve "experience that can\'t drop; …"] [--defer "deferred (user-approved); …"]');
   process.exit(2);
 }
 
@@ -44,6 +44,16 @@ for (const p of mustNotChange) {
 }
 const taste = flag('--taste');
 
+// Scope & core-value (core/scope-value.md). All OPTIONAL — product work captures them; light/non-product
+// work carries none and is unaffected (proportionality). Same split as non_goals (";"/newline, trim, drop
+// empties). core_value = the *point* the user is building; must_preserve = experience/behavior that can't be
+// dropped; defer_candidates = what the user has OK'd to push later. The planner gate uses core_value to refuse
+// a silent phase-shrink (move the point into a later phase without asking / a scope-change decision).
+const splitList = (v) => (v || '').split(/\s*;\s*|\n/).map((s) => s.trim()).filter(Boolean);
+const coreValue = splitList(flag('--core-value'));
+const mustPreserve = splitList(flag('--must-preserve'));
+const deferCandidates = splitList(flag('--defer'));
+
 // Load state — fail loud on a corrupt foundation; require a current task (strength-judge runs first in /nb:plan).
 let state = {};
 const sp = join(nb, 'state.json');
@@ -63,6 +73,11 @@ state.definition_of_done = dod.trim();
 state.non_goals = nonGoals;
 state.must_not_change = mustNotChange;
 if (taste && taste.trim()) state.taste_notes = taste.trim();
+// Only set scope/value lists when given — absent flags leave any prior value untouched and don't write empties
+// onto a task that legitimately has no core_value captured (proportionality; validate-state checks shape only).
+if (coreValue.length) state.core_value = coreValue;
+if (mustPreserve.length) state.must_preserve = mustPreserve;
+if (deferCandidates.length) state.defer_candidates = deferCandidates;
 state.updated_at = new Date().toISOString();
 
 try { writeFileSync(sp, JSON.stringify(state, null, 2) + '\n'); }
@@ -73,4 +88,7 @@ console.log(`  intent: ${state.intent_summary}`);
 console.log(`  done-when: ${state.definition_of_done}`);
 console.log(`  non-goals: ${nonGoals.length ? nonGoals.join('; ') : '(none stated)'}`);
 console.log(`  off-limits: ${mustNotChange.length ? mustNotChange.join('; ') : '(none)'}`);
+if (coreValue.length) console.log(`  core-value: ${coreValue.join('; ')}`);
+if (mustPreserve.length) console.log(`  must-preserve: ${mustPreserve.join('; ')}`);
+if (deferCandidates.length) console.log(`  deferred (approved): ${deferCandidates.join('; ')}`);
 process.exit(0);

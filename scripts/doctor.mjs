@@ -37,7 +37,7 @@ function sourceChecks({ ok, w, f, need }) {
   // core SOT
   ['core/MANIFEST.md', 'core/module-manifest.schema.json', 'core/pack-manifest.schema.json', 'core/self-check.md',
     'core/strength.md', 'core/INSTALL.md', 'core/hud.md', 'core/grill-me.md',
-    'core/intent-lock.md', 'core/evidence-ledger.md', 'core/state-machine.md', 'core/artifact-ledger.md', 'core/hook-policy.md',
+    'core/intent-lock.md', 'core/scope-value.md', 'core/evidence-ledger.md', 'core/state-machine.md', 'core/artifact-ledger.md', 'core/hook-policy.md',
     'presets/full.yaml'].forEach((p) => need(p));
   ['planner', 'implementer', 'plan-reviewer', 'code-reviewer', 'red-team', 'blue-team', 'explore']
     .forEach((a) => need(`agents/${a}.md`));
@@ -109,7 +109,7 @@ function sourceChecks({ ok, w, f, need }) {
 function targetChecks({ ok, w, f, need }) {
   // copied SOT
   ['core/MANIFEST.md', 'core/self-check.md', 'core/strength.md', 'core/INSTALL.md',
-    'core/hud.md', 'core/grill-me.md', 'core/intent-lock.md', 'core/evidence-ledger.md'].forEach((p) => need(p));
+    'core/hud.md', 'core/grill-me.md', 'core/intent-lock.md', 'core/scope-value.md', 'core/evidence-ledger.md'].forEach((p) => need(p));
   ['planner', 'implementer', 'plan-reviewer', 'code-reviewer', 'red-team', 'blue-team', 'explore']
     .forEach((a) => need(`agents/${a}.md`));
   ['design', 'implement', 'security'].forEach((m) => need(`modules/${m}/nb-module.json`));

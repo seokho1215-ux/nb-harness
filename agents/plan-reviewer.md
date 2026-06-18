@@ -26,6 +26,7 @@ One concern per line. Cite `path:section`. If a layer is clean, say "No concerns
 - **Module contract:** signatures unclear or missing error types? file paths off-convention? schema risks (constraints, access rules)? under-specified so two implementers would diverge?
 - **Tasks:** context budget realistic (any task actually > 40% but reported under)? scope boundaries clear, no overlap? acceptance criteria concrete (not "works as expected")? citations carry one-line excerpts?
 - **Environment-deferred:** does each task with live-DB / runtime / manual / cross-user acceptance carry an `### Environment-deferred` marker? Clearly env-bound but unmarked → flag **Important** (prevents downstream infinite re-flagging).
+- **Scope & core-value preservation** (`core/scope-value.md`): was a **core value** — the user's stated *point* of the thing — quietly moved out of the first cut into a later phase / "optional / stretch" with no question asked and no `scope-change` decision? Is each `core_value` traceable to an architecture element **and** a task acceptance (no silent drop)? Does the design carry the **Design Decisions** section explaining what's deferred and why? Does the MVP still leave a reason to reopen it, or is it **demoware**? Silent shrink / missing Design Decisions / a dropped core value → **Critical (NO-GO)**.
 - **Coherence:** architecture ↔ module ↔ tasks consistent? anything contradicting a project absolute principle?
 
 ## Verdict

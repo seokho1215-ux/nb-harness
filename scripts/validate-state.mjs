@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripBom } from './lib/proof.mjs';
 import { checkIntentText } from './lib/intent.mjs';
-import { checkDesignDocs } from './lib/design-docs.mjs';
+import { checkDesignDocs, designDocsDir } from './lib/design-docs.mjs';
 import { statePresetGates } from './lib/preset.mjs';
 import { deriveModelPolicy, belowFloor, validateModelPolicy } from './lib/model-policy.mjs';
 import { deriveReviewFloor, belowFloor as reviewBelowFloor, validateReviewBudget } from './lib/review-budget.mjs';
@@ -113,11 +113,31 @@ if (POST_PLAN.includes(s.current_mode)) {
   if (slug) {
     const dd = checkDesignDocs(projectRoot, slug, s.design_docs);
     for (const e of dd.errors) errs.push(`${s.current_mode}: ${e}`);
+    // Transparency floor (core/scope-value.md): if a core_value is declared, the planner must have EXPLAINED how
+    // it's preserved — a `## Design Decisions` section (in 01-architecture.md or meta.md). The planner.md prompt
+    // requires it always; this binds it DETERMINISTICALLY only where a silent scope-shrink is possible (a
+    // core_value exists). No core_value (light/non-product work) → no requirement (proportionality).
+    if (Array.isArray(s.core_value) && s.core_value.length) {
+      const ddir = designDocsDir(projectRoot, slug, s.design_docs);
+      const hasDecisions = ['01-architecture.md', 'meta.md'].some((f) => {
+        const p = join(ddir, f);
+        if (!existsSync(p)) return false;
+        try { return /^#{1,6}\s*design\s+decisions\b/im.test(readFileSync(p, 'utf8')); } catch { return false; }
+      });
+      if (!hasDecisions) errs.push(`${s.current_mode}: a core_value is declared but no "## Design Decisions" section explains it (core/scope-value.md) — the planner must state what's deferred & why + core_value→acceptance traceability in 01-architecture.md or meta.md`);
+    }
   }
 }
 // drift_risks (P-c/#16): if present it must be a list (the intent-drift signal grill records). close binds it —
 // a non-empty drift_risks without a drift-accepted decision blocks, just like open_risks.
 if (s.drift_risks != null && !Array.isArray(s.drift_risks)) errs.push('drift_risks must be a list (intent-drift signals)');
+// scope & core-value (core/scope-value.md): all OPTIONAL (no hard-require — proportionality, non-product/light
+// work carries none). If present each must be a list of strings, so the planner gate reads a real shape.
+for (const k of ['core_value', 'must_preserve', 'defer_candidates']) {
+  if (s[k] == null) continue;
+  if (!Array.isArray(s[k])) { errs.push(`${k} must be a list (core/scope-value.md)`); continue; }
+  if (s[k].some((v) => typeof v !== 'string')) errs.push(`${k} entries must be strings`);
+}
 // must_not_change is optional, but if present it must be a list of strings, and any /regex/ entry must
 // compile (close would otherwise silently fall back to a substring match — a quiet weakening of the guard).
 if (s.must_not_change != null) {

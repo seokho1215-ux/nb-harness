@@ -20,7 +20,7 @@ function tmpNb() {
   // seed the 3-tier design docs for slug 't' so POST_PLAN validate-state isn't blocked on P-e/M2 (this test
   // probes the intent rules, not the design-docs rule).
   mkdirSync(join(t, 'pipeline', 't', '03-tasks'), { recursive: true });
-  writeFileSync(join(t, 'pipeline', 't', '01-architecture.md'), '# Arch\n');
+  writeFileSync(join(t, 'pipeline', 't', '01-architecture.md'), '# Arch\n\n## Design Decisions\nFirst cut covers the core; nothing deferred. core_value -> task 01 acceptance.\n');
   writeFileSync(join(t, 'pipeline', 't', '02-module.md'), '# Contract\n');
   writeFileSync(join(t, 'pipeline', 't', '03-tasks', '01.md'), '# Task\n\n## Context Budget\n~20%.\n');
   return join(t, '.nb');
@@ -152,6 +152,62 @@ const planned = { current_task: 't', current_task_slug: 't', current_mode: 'desi
   check('latin mash + CJK (qwertyuiop修正登录后跳) -> writer exit 2', run(nb, ['--task', 't', '--intent', 'qwertyuiop修正登录后跳', '--dod', 'ログイン後にユーザーが元のページへ正しく遷移する']).status === 2);
   // a real CJK sentence with a short acronym still passes (non-Latin dominates)
   check('CJK + short acronym (ログインAPIのバグを修正する) -> writer exit 0', run(nb, ['--task', 't', '--intent', 'ログインAPIのバグを修正する', '--dod', 'ログイン後にユーザーが元のページへ正しく遷移する']).status === 0);
+  rm(nb);
+}
+
+// 8) scope & core-value (core/scope-value.md): --core-value/--must-preserve/--defer persist as lists; absent
+// flags leave them unset (no empty arrays written); validate-state accepts the shape and rejects a non-list.
+{
+  const nb = tmpNb();
+  setState(nb, planned);
+  const r = run(nb, ['--task', 't', '--intent', 'build the knowledge spine view', '--dod', 'the spine renders and nodes are clickable', '--core-value', 'node-click causal highlight; time<->topic axis switch', '--must-preserve', 'the spine view is the heart', '--defer', 'export to PDF (user OK)']);
+  check('core-value: exit 0', r.status === 0);
+  const s = readState(nb);
+  check('core-value parsed to list (2)', Array.isArray(s.core_value) && s.core_value.length === 2 && s.core_value[0] === 'node-click causal highlight');
+  check('must-preserve parsed to list (1)', Array.isArray(s.must_preserve) && s.must_preserve.length === 1);
+  check('defer parsed to list (1)', Array.isArray(s.defer_candidates) && s.defer_candidates.length === 1);
+  check('core-value: stdout reports it', /core-value:/.test(r.stdout));
+  setState(nb, { ...readState(nb), current_mode: 'implement' });
+  check('core-value: validate-state OK', vstate(nb).status === 0);
+  rm(nb);
+}
+
+// 8b) absent scope flags write nothing (proportionality — light/non-product work carries none).
+{
+  const nb = tmpNb();
+  setState(nb, planned);
+  run(nb, ['--task', 't', '--intent', 'fix the small label color', '--dod', 'the label renders in the brand color']);
+  const s = readState(nb);
+  check('no core-value flag -> field absent', s.core_value === undefined && s.must_preserve === undefined && s.defer_candidates === undefined);
+  rm(nb);
+}
+
+// 8c) a hand-edited non-list core_value -> validate-state INVALID (shape guard).
+{
+  const nb = tmpNb();
+  setState(nb, { ...planned, current_mode: 'implement', intent_summary: 'build the knowledge spine view', definition_of_done: 'the spine renders and nodes are clickable', non_goals: [], core_value: 'not a list' });
+  check('non-list core_value -> validate-state FAIL', vstate(nb).status === 1);
+  rm(nb);
+}
+
+// 8d) transparency floor (core/scope-value.md): a declared core_value with NO "## Design Decisions" section in
+// the design docs -> validate-state FAIL at implement; adding the section -> OK. No core_value -> not required.
+{
+  const nb = tmpNb();
+  const root = resolve(nb, '..');
+  // strip the Design Decisions section tmpNb seeds, to prove the gate fires
+  writeFileSync(join(root, 'pipeline', 't', '01-architecture.md'), '# Arch\n(no decisions section)\n');
+  setState(nb, { ...planned, current_mode: 'implement', intent_summary: 'build the knowledge spine view', definition_of_done: 'the spine renders and nodes are clickable', non_goals: [], core_value: ['node-click causal highlight'] });
+  const v = vstate(nb);
+  check('core_value w/o Design Decisions -> validate-state FAIL', v.status === 1);
+  check('failure names the missing Design Decisions', /Design Decisions/.test(v.stdout));
+  // add the section -> OK
+  writeFileSync(join(root, 'pipeline', 't', '01-architecture.md'), '# Arch\n\n## Design Decisions\ncore value is in the first cut; traced to task 01.\n');
+  check('core_value WITH Design Decisions -> validate-state OK', vstate(nb).status === 0);
+  // no core_value at all -> the floor does not apply even without a decisions section
+  writeFileSync(join(root, 'pipeline', 't', '01-architecture.md'), '# Arch\n(no decisions section)\n');
+  setState(nb, { ...planned, current_mode: 'implement', intent_summary: 'build the knowledge spine view', definition_of_done: 'the spine renders and nodes are clickable', non_goals: [] });
+  check('no core_value -> Design Decisions not required', vstate(nb).status === 0);
   rm(nb);
 }
 

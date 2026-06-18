@@ -89,6 +89,7 @@ if (differentTask && !replaceTask) {
 // without this, --replace-task only swapped task/strength/workflow and left old intent+evidence behind.)
 const TASK_SCOPED = ['workflow_reason', 'escalation_reason', 'active_agent_lane', 'active_gates',
   'intent_summary', 'non_goals', 'definition_of_done', 'taste_notes', 'must_not_change', 'drift_risks',
+  'core_value', 'must_preserve', 'defer_candidates',
   'design_docs', 'model_policy', 'review_budget', 'last_review', 'last_evidence', 'last_brief', 'last_security',
   'open_risks', 'blocked_reason', 'declared_packs', 'task_base_ref'];
 if (differentTask && replaceTask) for (const k of TASK_SCOPED) delete state[k];

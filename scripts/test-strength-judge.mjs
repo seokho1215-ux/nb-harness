@@ -132,6 +132,7 @@ const rm = (nb) => rmSync(resolve(nb, '..'), { recursive: true, force: true });
   const s = JSON.parse(readFileSync(p, 'utf8'));
   Object.assign(s, {
     intent_summary: 'old intent', definition_of_done: 'old dod', non_goals: ['old ng'],
+    core_value: ['old core value'], must_preserve: ['old must preserve'], defer_candidates: ['old defer'],
     last_evidence: 'first-task.md', last_review: 'first-task.md', last_brief: 'first-task.md',
     open_risks: ['old risk'], drift_risks: ['old drift'], declared_packs: ['testing'], blocked_reason: 'old block',
   });
@@ -143,6 +144,9 @@ const rm = (nb) => rmSync(resolve(nb, '..'), { recursive: true, force: true });
   check('replace: old evidence/review/brief pointers cleared', !s2.last_evidence && !s2.last_review && !s2.last_brief);
   check('replace: old risks + blocked_reason cleared', !(s2.open_risks && s2.open_risks.length) && !(s2.drift_risks && s2.drift_risks.length) && !s2.blocked_reason);
   check('replace: stale declared_packs cleared (no "testing" bleed)', !(s2.declared_packs && s2.declared_packs.includes('testing')));
+  // scope/core-value fields are task-scoped too — a new task must not inherit the old task's core values
+  // (that would make the planner/reviewer preserve+trace the WRONG intent). Codex GATE: replace-task scope leak.
+  check('replace: old core_value + must_preserve + defer_candidates cleared', !(s2.core_value && s2.core_value.length) && !(s2.must_preserve && s2.must_preserve.length) && !(s2.defer_candidates && s2.defer_candidates.length));
   check('replace: new task still valid', vstate(nb).status === 0);
   rm(nb);
 }
