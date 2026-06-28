@@ -1,0 +1,154 @@
+{
+  "$comment": "NB claim -> enforcement traceability map (the honesty guard). Each headline guarantee maps to the EXACT code that enforces it and the test that proves it. scripts/claim-map-check.mjs fails release-check if any enforced_by/proven_by reference goes dangling — so a gate cannot be deleted/renamed while its doc claim survives (the 'docs promise more than code enforces' regression). `kind` states the HONEST strength of each claim; this file doubles as the honest-scope index.",
+  "kinds": {
+    "enforced": "/nb:close BLOCKS (NOT_READY/CHECK_ERROR) when the guarantee is not met.",
+    "surfaced": "Not a hard block by default — the firewall makes the truth VISIBLE (a labeled strength / a loud warning) so it can't be silently overclaimed; becomes a hard block under a stricter profile.",
+    "advisory": "Recorded/derived state, not a runtime block over the model's behavior (e.g. model_policy is a tier string, not the actual model).",
+    "floor": "Tamper-EVIDENT, not tamper-proof: holds against accidental/agentic overclaim, not a malicious user with .nb write access."
+  },
+  "claims": [
+    {
+      "id": "proof-command-binding",
+      "claim": "A pack proof_type is bound to the command it must have run — not a decorative label (an exit-0 `npm test` can't satisfy `migration-down`).",
+      "kind": "enforced",
+      "enforced_by": [
+        { "file": "scripts/lib/proof.mjs", "contains": "export function matchesPattern" },
+        { "file": "scripts/lib/proof.mjs", "contains": "ctx.commandMatch != null" }
+      ],
+      "proven_by": [{ "file": "scripts/test-proof.mjs", "contains": "command_match" }]
+    },
+    {
+      "id": "objective-proof-log-reconcile",
+      "claim": "An objective proof passes only if a matching command was independently logged by the hook (a fabricated 'tests passed' with no real run is rejected).",
+      "kind": "enforced",
+      "enforced_by": [
+        { "file": "scripts/lib/proof.mjs", "contains": "function loggedRun" },
+        { "file": "scripts/lib/proof.mjs", "contains": "not observed to actually run (fabrication guard)" }
+      ],
+      "proven_by": [{ "file": "scripts/test-proof.mjs", "contains": "fabrication" }]
+    },
+    {
+      "id": "strong-bind-producer",
+      "claim": "Release-/supply-critical proofs (publish-file-list, security-report-check) require a run_id from their own gate-running producer — a hand-written record is rejected.",
+      "kind": "enforced",
+      "enforced_by": [
+        { "file": "scripts/lib/proof.mjs", "contains": "STRONG_BIND_PROOFS" },
+        { "file": "scripts/lib/proof.mjs", "contains": "PROOF_PRODUCERS" }
+      ],
+      "proven_by": [{ "file": "scripts/test-close-e2e.mjs", "contains": "publish-file-list" }]
+    },
+    {
+      "id": "security-cross-family",
+      "claim": "The security red/blue gate is real cross-family: a non-Claude family claim needs a logged codex run via the courier.",
+      "kind": "enforced",
+      "enforced_by": [
+        { "file": "scripts/security-report-check.mjs", "contains": "verifyRedblueRuns" },
+        { "file": "scripts/security-redblue.mjs", "contains": "security-redblue" }
+      ],
+      "proven_by": [{ "file": "scripts/test-security-report-check.mjs", "contains": "redblue" }]
+    },
+    {
+      "id": "core-review-provenance",
+      "claim": "The core review carries a provenance STRENGTH (cross-family machine-bound / manual / unverified) — a bare file is never silently credited as a cross-family review.",
+      "kind": "surfaced",
+      "enforced_by": [
+        { "file": "scripts/lib/proof.mjs", "contains": "export function reviewBinding" },
+        { "file": "scripts/lib/close-engine.mjs", "contains": "presetCrossFamily" }
+      ],
+      "proven_by": [
+        { "file": "scripts/test-proof.mjs", "contains": "reviewBinding" },
+        { "file": "scripts/test-close-e2e.mjs", "contains": "cross_family preset" }
+      ]
+    },
+    {
+      "id": "tdd-red-green",
+      "claim": "The opt-in TDD gate proves test-first: a red (failed) test run logged BEFORE a green (passed) one.",
+      "kind": "enforced",
+      "enforced_by": [
+        { "file": "scripts/lib/proof.mjs", "contains": "export function verifyTddRedGreen" },
+        { "file": "scripts/lib/proof.mjs", "contains": "test-first order (red → green) not observed" }
+      ],
+      "proven_by": [{ "file": "scripts/test-proof.mjs", "contains": "green-before-red" }]
+    },
+    {
+      "id": "task-scope-exact",
+      "claim": "Artifacts/proofs are scoped to the current task by exact slug, not substring — another task's files can't be laundered in.",
+      "kind": "enforced",
+      "enforced_by": [
+        { "file": "scripts/lib/proof.mjs", "contains": "export const slugify" },
+        { "file": "scripts/lib/score.mjs", "contains": "const fnMatch" }
+      ],
+      "proven_by": [{ "file": "scripts/test-close-e2e.mjs", "contains": "substring artifacts" }]
+    },
+    {
+      "id": "ledger-row-existence",
+      "claim": "An artifact-ledger row counts only if the file it references actually exists and is task-matched (a forged row is not the artifact).",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/lib/score.mjs", "contains": "is not itself proof the artifact exists" }],
+      "proven_by": [{ "file": "scripts/test-close-e2e.mjs", "contains": "forged ledger rows" }]
+    },
+    {
+      "id": "security-floor-never-waivable",
+      "claim": "The security safety floor can never be N/A-waived — an auth/secret/payment change always has to produce its security report.",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/lib/close-engine.mjs", "contains": "NA_NEVER" }],
+      "proven_by": [{ "file": "scripts/test-close-engine.mjs", "contains": "security" }]
+    },
+    {
+      "id": "state-done-gate",
+      "claim": "close refuses to certify 'done' from a pre-work or blocked state (idle/design/blocked).",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/lib/close-engine.mjs", "contains": "NOT_CLOSEABLE_FROM" }],
+      "proven_by": [{ "file": "scripts/test-close-engine.mjs", "contains": "blocked" }]
+    },
+    {
+      "id": "contract-source-locked",
+      "claim": "The firewall's contract source can't be swapped via env (NB_PACKS_DIR/NB_CONTRACT_ROOT) — close fails CHECK_ERROR.",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/lib/close-engine.mjs", "contains": "contract source override attempt refused" }],
+      "proven_by": [{ "file": "scripts/test-close.mjs", "contains": "override" }]
+    },
+    {
+      "id": "supply-chain-existence",
+      "claim": "An install of a non-existent (hallucinated) package is caught by a live registry existence check.",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/lib/package-risk.mjs", "contains": "404" }],
+      "proven_by": [{ "file": "scripts/test-package-risk.mjs", "contains": "404" }]
+    },
+    {
+      "id": "no-string-exec",
+      "claim": "NB's own runtime never executes JS from a string (no eval/Function/vm/shell:true) — enforced as a release gate.",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/no-eval-check.mjs", "contains": "scanTree" }],
+      "proven_by": [{ "file": "scripts/test-no-eval.mjs", "contains": "eval" }]
+    },
+    {
+      "id": "attack-gate-failclosed",
+      "claim": "A sandbox attack is authorized only when all pins pass (consent, ownership-of-a-clone, allowlist, no-destructive, no-real-payment, rate) — fail-closed.",
+      "kind": "enforced",
+      "enforced_by": [{ "file": "scripts/lib/attack-gate.mjs", "contains": "export function evaluateAttack" }],
+      "proven_by": [{ "file": "scripts/test-attack-gate.mjs", "contains": "consent" }]
+    },
+    {
+      "id": "secret-redaction",
+      "claim": "Known secret patterns are redacted from the machine output NB writes (tool log, nb-run evidence/proofs, attack authorization).",
+      "kind": "floor",
+      "enforced_by": [{ "file": "scripts/lib/proof.mjs", "contains": "export const redact" }],
+      "proven_by": [{ "file": "scripts/test-secret-redaction.mjs", "contains": "redact" }]
+    },
+    {
+      "id": "na-waiver-visible",
+      "claim": "A non-security pack N/A waiver is a human-accountable decision, not a verified proof — surfaced loudly, never a silent skip.",
+      "kind": "surfaced",
+      "enforced_by": [{ "file": "scripts/lib/close-engine.mjs", "contains": "WAIVED via a" }],
+      "proven_by": [{ "file": "scripts/test-close-engine.mjs", "contains": "na" }]
+    },
+    {
+      "id": "model-policy-recorded",
+      "claim": "model_policy is a portable, recorded TIER (raise-only, gated at close) — NOT runtime control or observation of the actual model.",
+      "kind": "advisory",
+      "enforced_by": [{ "file": "scripts/lib/model-policy.mjs", "contains": "export function deriveModelPolicy" }],
+      "proven_by": [{ "file": "scripts/test-model-policy.mjs", "contains": "floor" }]
+    }
+  ]
+}

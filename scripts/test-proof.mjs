@@ -60,6 +60,9 @@ check('no command blocked', verifyProof({ ...base, command: '' }, ctx, events).o
 
 // 12) isStub helper
 check('isStub catches TODO/empty, allows real', isStub('TODO') && isStub('') && !isStub('# pass 4'));
+// counter-strip must not turn a pure-counter placeholder into "real output" (Codex security re-check):
+check('isStub: bare "TODO 0" is still a stub (collapses to empty)', isStub('TODO 0') && isStub('skipped 0\npending 0'));
+check('isStub: a real run with a "todo 0" counter is NOT a stub', !isStub('✔ sum adds\n# tests 1\n# pass 1\n# fail 0\n# todo 0'));
 
 // 12b) run_id strong binding (nb-run proofs): match the SPECIFIC logged run by run_id + output_sha256
 { const ev = [{ tool: 'Bash', source: 'nb-run', ok: true, cmd: 'node x', run_id: 'r1', output_sha256: 'abc' }];
@@ -276,6 +279,9 @@ const mkRec = (over = {}) => ({ task: 'taska', pack: 'testing', proof_type: 'cov
   // Codex GATE finding 2 PoC: `echo npm test && false` (red) / `echo npm test` (green) contains the token but
   // LEADS with echo — the leader guard rejects it even though both are logged with the right outcomes.
   check('tdd: echo-leader forge (echo npm test && false) -> NOT ok', verifyTddRedGreen(rec({ red_command: 'echo npm test && false', green_command: 'echo npm test' }), tctx, [{ tool: 'Bash', ok: false, cmd: 'echo npm test && false' }, { tool: 'Bash', ok: true, cmd: 'echo npm test' }]).ok === false);
+  // Codex security finding 3: GREEN logged BEFORE the RED fail is not test-first — order must be red -> green.
+  check('tdd: green-before-red (wrong order) -> NOT ok', verifyTddRedGreen(rec(), tctx, [{ tool: 'Bash', ok: true, cmd: 'npm test parser' }, { tool: 'Bash', ok: false, cmd: 'npm test parser' }]).ok === false);
+  check('tdd: red-then-green (correct order) -> ok', verifyTddRedGreen(rec(), tctx, [{ tool: 'Bash', ok: false, cmd: 'npm test parser' }, { tool: 'Bash', ok: true, cmd: 'npm test parser' }]).ok === true);
 }
 
 console.log(`\n${pass} passed / ${fail} failed`);

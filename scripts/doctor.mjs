@@ -62,7 +62,7 @@ function sourceChecks({ ok, w, f, need }) {
   ['install.mjs', 'setup.mjs', 'cross-review.mjs', 'hud.mjs', 'doctor.mjs', 'validate-manifests.mjs',
     'status.mjs', 'release-check.mjs', 'test-hooks.mjs', 'harness-score.mjs', 'lib/score.mjs', 'lib/proof.mjs', 'lib/activation.mjs', 'lib/close-engine.mjs', 'lib/workflow.mjs', 'lib/exec-detect.mjs', 'close.mjs', 'nb-run.mjs', 'test-close.mjs', 'test-proof.mjs', 'test-activation.mjs', 'test-close-engine.mjs', 'test-workflow.mjs', 'test-exec-detect.mjs', 'validate-workflows.mjs', 'test-harness-score.mjs',
     'validate-state.mjs', 'test-validate-state.mjs', 'validate-artifacts.mjs', 'validate-commands.mjs', 'validate-packs.mjs', 'test-install-fixtures.mjs',
-    'no-eval-check.mjs', 'test-no-eval.mjs',
+    'no-eval-check.mjs', 'test-no-eval.mjs', 'claim-map-check.mjs',
     'strength-judge.mjs', 'intent-lock.mjs', 'pack-skills.mjs',
     'lib/preset.mjs', 'apply-preset.mjs', 'validate-presets.mjs', 'test-preset.mjs',
     'lib/package-risk.mjs', 'package-risk-check.mjs', 'test-package-risk.mjs',
@@ -98,6 +98,7 @@ function sourceChecks({ ok, w, f, need }) {
   };
   run('validate-manifests.mjs', 'manifests valid');
   run('validate-workflows.mjs', 'workflows valid');
+  run('claim-map-check.mjs', 'claim->enforcement map resolves');
   run('validate-commands.mjs', 'commands valid');
   run('validate-state.mjs', 'state valid');
   run('validate-artifacts.mjs', 'artifacts valid');

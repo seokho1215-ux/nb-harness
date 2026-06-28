@@ -33,11 +33,16 @@ export function scoreTask(nbDir) {
 
   // Does this artifact belong to the current task? (filename includes the task/slug, or file
   // metadata carries a "Task: <task>" line). If there's no current task, anything matches.
+  // The filename must carry the task/slug as a BOUNDED token, not a raw substring (Codex GATE: `includes(slug)`
+  // let slug "auth" match "not-auth.md" / "oauth.md" / "authorize.md" — cross-task laundering). Artifacts follow
+  // the `<slug>.<suffix>.md` convention (e.g. auth.md, auth.cross-review.md, auth.round2.md), so the name must
+  // EQUAL the key or START WITH `<key>.`. The in-file `Task: <slug>` line (word-boundary) remains the fallback.
+  const fnMatch = (fn, key) => !!key && (fn === key || fn.startsWith(key + '.'));
   function matchesTask(filename, fullPath) {
     if (!task && !slug) return true;
     const fn = filename.toLowerCase();
-    if (slug && fn.includes(slug)) return true;
-    if (task && fn.includes(task.toLowerCase())) return true;
+    if (slug && fnMatch(fn, slug)) return true;
+    if (task && fnMatch(fn, task.toLowerCase())) return true;
     try {
       const c = readFileSync(fullPath, 'utf8');
       const parts = [task, slug].filter(Boolean).map(escapeRe).join('|');
@@ -76,12 +81,24 @@ export function scoreTask(nbDir) {
         const t = ln.trim(); if (!t) continue;
         try {
           const r = JSON.parse(t);
-          if (r.status === 'current' && (!slug || r.task_slug === slug)) (ledger[r.type] ||= []).push(r);
+          if (r.status !== 'current' || (slug && r.task_slug !== slug)) continue;
+          // A ledger ROW is not itself proof the artifact exists (Codex GATE: forged rows pointing at missing /
+          // other-task files read as READY). The referenced file must actually EXIST and be task-matched, or the
+          // row is dropped (-> fromLedger falls back to the pointer, which is independently existence-checked).
+          const base = r.path ? String(r.path).split('/').pop() : null;
+          const full = r.path ? join(nbDir, '..', r.path) : null;
+          if (!full || !existsSync(full) || !matchesTask(base, full)) continue;
+          (ledger[r.type] ||= []).push(r);
         } catch { /* skip bad row */ }
       }
     }
   } catch { /* none */ }
-  const fromLedger = (type, pointer, dir) => (ledger ? (ledger[type]?.length ? { v: 'yes' } : { v: 'missing' }) : assess(pointer, dir));
+  // The artifact ledger is authoritative PER TYPE: a type WITH current rows reads 'yes'; a type the ledger does
+  // not track (e.g. review/brief — only nb-run writes ledger rows, for evidence/proofs) falls back to the state
+  // pointer + file assessment, exactly as in no-ledger mode. So a present-but-unledgered review/brief is no
+  // longer suppressed to "missing" just because nb-run created an evidence ledger (dogfood finding). The ledger
+  // can only ADD authority, never hide a legitimately pointed/task-matched artifact.
+  const fromLedger = (type, pointer, dir) => ((ledger && ledger[type]?.length) ? { v: 'yes' } : assess(pointer, dir));
 
   const plan = (task || workflow) ? 'yes' : 'missing';
   const intent = state.intent_summary ? 'yes' : 'missing';

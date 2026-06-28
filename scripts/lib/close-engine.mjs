@@ -109,6 +109,11 @@ export function closeEngine(input = {}) {
   // pack is `security` (auth/secret/payment/code-execution/ci-security all imply it).
   const NA_NEVER = new Set(['security']);
   const naWaived = (pack) => !explicit.has(pack) && !NA_NEVER.has(pack) && decisionOk(decisions[`${pack}-na`]);
+  // A waived pack must never be a SILENT skip: surface it loudly so an N/A waiver used on a real change is visible
+  // (it is a human-accountable decision, not a verified proof — the documented Issue-B trade-off, security excepted).
+  for (const pack of new Set(active)) {
+    if (contracts[pack] && naWaived(pack)) warnings.push(`pack "${pack}" objective/analytical proofs WAIVED via a ${pack}-na decision — NOT verified; valid only if this is genuinely not a ${pack} change`);
+  }
 
   // 3a. objective
   for (const pack of active) {

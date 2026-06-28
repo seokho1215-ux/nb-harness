@@ -40,6 +40,7 @@ node([join(ROOT, 'scripts', 'test-workflow.mjs')]).status === 0 ? ok('workflow r
 node([join(ROOT, 'scripts', 'test-validate-state.mjs')]).status === 0 ? ok('validate-state tests pass') : bad('validate-state tests fail');
 node([join(ROOT, 'scripts', 'test-decision.mjs')]).status === 0 ? ok('decision verifier tests pass') : bad('decision verifier tests fail');
 node([join(ROOT, 'scripts', 'validate-workflows.mjs')]).status === 0 ? ok('workflows valid') : bad('workflows invalid');
+node([join(ROOT, 'scripts', 'claim-map-check.mjs')]).status === 0 ? ok('claim->enforcement map resolves (no doc guarantee points at deleted/renamed code)') : bad('claim->enforcement map has a dangling reference (a headline guarantee lost its enforcing code or test — run claim-map-check.mjs)');
 node([join(ROOT, 'scripts', 'validate-commands.mjs')]).status === 0 ? ok('commands valid') : bad('commands invalid');
 node([join(ROOT, 'scripts', 'validate-state.mjs')]).status === 0 ? ok('state valid') : bad('state invalid');
 node([join(ROOT, 'scripts', 'validate-artifacts.mjs')]).status === 0 ? ok('artifacts valid') : bad('artifacts invalid');

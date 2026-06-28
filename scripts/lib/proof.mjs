@@ -52,7 +52,17 @@ const STUB = /\b(TODO|TBD|FIXME|not\s*run|will\s*run|assume[ds]?|later|pending|n
 
 export const isStub = (text) => {
   const t = String(text || '').trim();
-  return t.length === 0 || STUB.test(t);
+  if (t.length === 0) return true;
+  // Strip test-runner SUMMARY COUNTERS ("todo 0", "pending: 0", "skipped 2", "n/a 1") before the stub check —
+  // node --test / TAP / jest summaries legitimately print these, and matching the bare keyword inside a real
+  // run's output false-flagged genuine evidence as a placeholder (dogfood finding). A true stub ("TODO",
+  // "not run", "pending review" — no trailing count) still matches.
+  const stripped = t.replace(/\b(todo|tbd|fixme|pending|cancelled|skipped|n\/?a)\b\s*[:=]?\s*\d+/gi, '').trim();
+  // Stripping counters must not TURN a placeholder into "real output": an excerpt that is NOTHING BUT counters
+  // (e.g. literally "TODO 0") collapses to empty -> still a stub (Codex security re-check). Only a counter
+  // embedded in OTHER real output (a genuine test run) survives as non-stub.
+  if (stripped.length === 0) return true;
+  return STUB.test(stripped);
 };
 
 // Canonical slug so task matching is EXACT, never substring — "task-a" must NOT match "not-task-a"
@@ -272,22 +282,36 @@ export function verifyTddRedGreen(record, ctx = {}, events = []) {
   // a wrapper that genuinely contains a test-runner token remains the documented C3-class limit (not full
   // semantic analysis) — but the trivial echo/printf bypass Codex flagged is closed.
   const NON_TEST_LEADER = /^\s*(echo|printf|print|cat|type|true|false|:|#|node\s+-e|python3?\s+-c|ruby\s+-e|perl\s+-e)\b/i;
+  // Index of the first event matching `cmd` with the given outcome, at or after `from` (log order = chronological
+  // append order). Same normalized/truncation match as loggedRun, but position-aware so order can be enforced.
+  const matchIdx = (cmd, expectOk, from = 0) => {
+    const want = norm(cmd);
+    for (let i = from; i < events.length; i++) {
+      const e = events[i]; if (!e || !e.cmd || e.ok !== expectOk) continue;
+      const have = norm(e.cmd);
+      if (have === want || (String(e.cmd).length >= 500 && want.startsWith(have) && have.length > 0)) return i;
+    }
+    return -1;
+  };
+  let redIdx = -1;
   if (!red || !String(red).trim()) reasons.push('no red_command (the failing test run that proves test-first)');
   else {
     if (NON_TEST_LEADER.test(redact(red))) reasons.push(`red_command "${redact(red)}" leads with a printer/noop, not a test runner — not a real failing test`);
     if (cm != null && !matchesPattern(norm(red), cm)) reasons.push(`red_command "${redact(red)}" is not a recognized test command (must match ${cm})`);
-    if (!loggedRun(red, false, events)) reasons.push('red_command not found as a FAILED run in the tool log — no evidence the test failed first (test-first)');
+    redIdx = matchIdx(red, false);
+    if (redIdx === -1) reasons.push('red_command not found as a FAILED run in the tool log — no evidence the test failed first (test-first)');
   }
   if (!green || !String(green).trim()) reasons.push('no green_command (the passing run after the implementation)');
   else {
     if (NON_TEST_LEADER.test(redact(green))) reasons.push(`green_command "${redact(green)}" leads with a printer/noop, not a test runner — not a real passing test`);
     if (cm != null && !matchesPattern(norm(green), cm)) reasons.push(`green_command "${redact(green)}" is not a recognized test command (must match ${cm})`);
-    if (!loggedRun(green, true, events)) reasons.push('green_command not found as a PASSED run in the tool log — no evidence the implementation made it pass');
-  }
-  // red and green must be DISTINCT runs (a single command can't be both the failing and passing observation).
-  if (red && green && norm(red) === norm(green) && !record.allow_same_command) {
-    // same command is legitimate TDD (run the same test before/after) — allowed, but then BOTH a failed AND a
-    // passed run of it must exist in the log (checked above). No extra reason; the two loggedRun checks cover it.
+    // ORDER (Codex GATE): the GREEN pass must come AFTER the RED fail in the log — test-first means red precedes
+    // green, not merely "a fail and a pass both exist". A green logged before the red does not prove test-first.
+    if (redIdx >= 0) {
+      if (matchIdx(green, true, redIdx + 1) === -1) reasons.push('green_command has no PASSED run AFTER the failing red run — test-first order (red → green) not observed in the log');
+    } else if (matchIdx(green, true) === -1) {
+      reasons.push('green_command not found as a PASSED run in the tool log — no evidence the implementation made it pass');
+    }
   }
   return { ok: reasons.length === 0, reasons, strength: 'standard' };
 }

@@ -358,6 +358,31 @@ const decision = (nb, slug, kind, what) => wf(join(nb, 'decisions', `${slug}.${k
   rmSync(resolve(nb, '..'), { recursive: true, force: true });
 }
 
+// ---- 2m) Codex security finding 1: a ledger ROW must reference an artifact that EXISTS -------------------
+// Forged artifacts.jsonl rows pointing at MISSING files must NOT read as READY (a row is not the artifact).
+{
+  const nb = tmpNb(); const slug = 'ship-fake';
+  wj(join(nb, 'state.json'), { current_task: 'Ship fake', current_task_slug: slug, current_workflow: 'standard-feature', intent_summary: 'ship fake', strength_level: 'standard' });
+  wf(join(nb, 'artifacts.jsonl'),
+    JSON.stringify({ ts: 't', type: 'evidence', task_slug: slug, status: 'current', path: `.nb/evidence/${slug}-missing.md` }) + '\n' +
+    JSON.stringify({ ts: 't', type: 'review', task_slug: slug, status: 'current', path: `.nb/reviews/${slug}-missing.md` }) + '\n' +
+    JSON.stringify({ ts: 't', type: 'brief', task_slug: slug, status: 'current', path: `.nb/briefs/${slug}-missing.md` }) + '\n');
+  const r = run(nb);
+  check('forged ledger rows pointing at MISSING files -> NOT_READY', /NOT READY/.test(r.stdout) && r.status === 1 && /evidence/.test(r.stdout));
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+
+// ---- 2n) Codex security finding 2: task matching is bounded, not substring ------------------------------
+// slug "auth" must NOT match another task's "not-auth.md" / "oauth.md" (cross-task artifact laundering).
+{
+  const nb = tmpNb(); const slug = 'auth';
+  wf(join(nb, 'evidence', 'not-auth.md'), 'Task: elsewhere\nx'); wf(join(nb, 'reviews', 'oauth.md'), 'Task: elsewhere\ny'); wf(join(nb, 'briefs', 'not-auth.md'), 'Task: elsewhere\nz');
+  wj(join(nb, 'state.json'), { current_task: 'Auth', current_task_slug: slug, current_workflow: 'standard-feature', intent_summary: 'do auth', last_evidence: '.nb/evidence/not-auth.md', last_review: '.nb/reviews/oauth.md', last_brief: '.nb/briefs/not-auth.md', strength_level: 'standard' });
+  const r = run(nb);
+  check('substring artifacts (not-auth.md / oauth.md) do NOT count for slug auth -> NOT_READY', /NOT READY/.test(r.stdout) && r.status === 1);
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+
 // ---- 3) SMOKE TABLE: every one of the 14 packs, declared + active with no proofs -> NOT_READY -----------
 // Cheap coverage for all 14 contracts (not deep e2e): proves each contract LOADS, the pack ACTIVATES (via
 // declaration), and its proof requirement BLOCKS. Uses full strength so even full-tagged proofs are required.
