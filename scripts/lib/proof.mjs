@@ -84,11 +84,29 @@ export function loadEvents(nbDir) {
 
 // Trusted execution-path sources: scripts that write a run_id + output_sha256 binding from a REAL run (nb-run,
 // publish-check). A run_id event from any other source is not a trusted-execution record.
-export const TRUSTED_RUN_SOURCES = new Set(['nb-run', 'publish-check']);
+export const TRUSTED_RUN_SOURCES = new Set(['nb-run', 'publish-check', 'security-report-check']);
 // Proof types that MUST be strongly bound (run_id + trusted source). These are release-/supply-critical proofs
 // whose value is that ONLY their producing script (which enforces the gate) can mint them — so the weak
 // command-log fallback (forgeable by a hand-written proof referencing any matching log line) is NOT accepted.
-export const STRONG_BIND_PROOFS = new Set(['publish-file-list']);
+export const STRONG_BIND_PROOFS = new Set(['publish-file-list', 'security-report-check']);
+// Per-proof-type REQUIRED producer: a strong-bind proof whose whole value is that ONLY its own gate-running
+// script may mint it. STRICTER than TRUSTED_RUN_SOURCES — publish-file-list must come from publish-check (which
+// runs the hygiene STOP gate), NOT from nb-run (which can write an arbitrary --pack/--proof record). Codex
+// cross-review finding: without this, nb-run could launder a publish-file-list past the publish hygiene gate.
+export const PROOF_PRODUCERS = { 'publish-file-list': 'publish-check', 'security-report-check': 'security-report-check' };
+
+// Match a recorded command against a contract command_match pattern: "/pat/flags" -> RegExp, else substring.
+// The pattern comes from the TRUSTED installed packs/ contract (never user/state input), so compiling it is safe.
+// This is how proof_type is BOUND to its real check: a `migration-down` proof whose command is `npm test` (an
+// unrelated exit-0 run) is rejected — closing the "proof_type is a decorative label" laundering Codex found.
+export function matchesPattern(value, pattern) {
+  if (pattern == null) return true;
+  const v = String(value || '');
+  if (pattern instanceof RegExp) return pattern.test(v);
+  const m = /^\/(.*)\/([a-z]*)$/.exec(String(pattern));
+  if (m) { try { return new RegExp(m[1], m[2]).test(v); } catch { return false; } } // malformed /regex/ -> fail closed (no match -> proof rejected), never silently degrade to substring
+  return v.includes(String(pattern));
+}
 
 // Is the record's command corroborated by an independently-logged event with a consistent outcome?
 // EXACT normalized match — NOT substring. A bidirectional includes let a broad proof command ("test")
@@ -198,6 +216,82 @@ export function verifyAnalytical(record, ctx = {}, inputs = {}) {
   return { ok: errors.length === 0 && reasons.length === 0, reasons, errors, strength, warnings };
 }
 
+// Provenance STRENGTH of a CORE review artifact (H2). The core `review` slot used to credit ANY task-matching
+// file as a full cross-family review (score.mjs) — the headline "cross-family review with provenance" overclaim
+// the honesty audit found. This applies the SAME three-way binding verifyAnalytical Lock ① uses for contracted
+// packs, but to the CORE review, so /nb:close and harness-score can state honestly what a review IS instead of
+// silently full-crediting a bare note. It does NOT prove the review is correct — only that it genuinely ran.
+//   returns { strength: 'cross-family' | 'manual' | 'unverified', bound, reason }
+//   - cross-family : 3-way agreement — artifact provenance output_sha256 == artifact body hash == a SUCCESSFUL
+//                    hook-logged cross_review run's body hash. The only machine-verified tier (bound=true).
+//   - manual       : human-attested (provenance manual_fallback:true, or Generic mode with no hook to bind
+//                    against). Accepted but LOW strength — surfaced, never silently credited as cross-family.
+//   - unverified   : a bare file, or altered/failed/mismatched provenance — not a cross-family review at all.
+// HONEST RESIDUAL (Codex GATE finding, same tamper-evidence boundary as verifyAnalytical Lock ①): "cross-family"
+// proves a command the hook CLASSIFIED as a cross-review (its text matched /codex exec|cross-review/) produced
+// this exact body block and was hook-logged ok — NOT that Codex genuinely ran. A user with .nb write access can
+// mint the event by echoing the body markers. This is the documented "tamper-evident, not tamper-proof" floor
+// (AGENTS honesty box); strengthening it would require cross-review.mjs to write a trusted run_id event.
+export function reviewBinding(text, events = [], mode = 'native') {
+  if (mode === 'generic') return { strength: 'manual', bound: false, reason: 'manual (Generic mode) — no hook to machine-verify; low strength' };
+  const prov = parseProvenance(text);
+  // A human who pastes into the other family's chat sets manual_fallback:true — an honest, low-strength path
+  // (the documented degrade). It carries no hook-logged run, so it is manual, not machine-bound.
+  if (prov && prov.manual_fallback) return { strength: 'manual', bound: false, reason: 'human-pasted manual cross-family fallback — not machine-verified; low strength' };
+  const bodyHash = reviewBodyHash(text);
+  if (bodyHash == null) return { strength: 'unverified', bound: false, reason: 'no canonical review-body block (not a cross-review output)' };
+  if (!prov || !prov.output_sha256) return { strength: 'unverified', bound: false, reason: 'no provenance output_sha256' };
+  if (prov.exit_status != null && String(prov.exit_status).trim() !== '0') return { strength: 'unverified', bound: false, reason: `provenance reports a failed run (exit_status ${prov.exit_status})` };
+  if (prov.output_sha256 !== bodyHash) return { strength: 'unverified', bound: false, reason: 'provenance mismatch (artifact body hash != stamped output_sha256 — artifact altered)' };
+  const okHashes = events.filter((e) => e && e.cross_review && e.ok === true && e.stdout_hash).map((e) => e.stdout_hash);
+  if (!okHashes.includes(bodyHash)) return { strength: 'unverified', bound: false, reason: 'no successful hook-logged cross-review run produced this body (not observed to run)' };
+  return { strength: 'cross-family', bound: true, reason: 'provenance-bound to a successful cross-family run' };
+}
+
+// Verify a TDD red→green analytical proof (the opt-in `tdd` workflow / testing-pack tdd-red-green proof). TDD's
+// invariant — "the test FAILED before the implementation, then PASSED after" — cannot be an OBJECTIVE proof:
+// verifyProof rejects exit≠0, so the RED run (a deliberately failing test) can never satisfy it. So this checks
+// the INDEPENDENT hook log for the red→green PAIR: the record names a red_command logged as a FAILED test run
+// and a green_command logged as a PASSED test run, both matching the contract's test command_match (so `echo`
+// can't pose as a test). Same anti-fabrication lock as verifyProof — a claimed RED the hook never logged as
+// failing is rejected. ctx = { task_slug, pack, commandMatch }. Returns { ok, reasons[], strength }.
+export function verifyTddRedGreen(record, ctx = {}, events = []) {
+  const reasons = [];
+  if (!record || typeof record !== 'object') return { ok: false, reasons: ['no tdd-red-green proof record'], strength: 'standard' };
+  const slug = ctx.task_slug;
+  if (slug && record.task && slugify(record.task) !== slugify(slug)) reasons.push(`proof task "${record.task}" does not match current task "${slug}"`);
+  if (!record.task) reasons.push('proof has no task');
+  if (ctx.pack && record.pack && record.pack !== ctx.pack) reasons.push(`proof pack "${record.pack}" does not match "${ctx.pack}"`);
+  if (!record.timestamp) reasons.push('no timestamp');
+  else if (Number.isNaN(Date.parse(record.timestamp))) reasons.push('timestamp not parseable');
+
+  const red = record.red_command, green = record.green_command;
+  const cm = ctx.commandMatch;
+  // A real test invocation can't LEAD with a pure printer/noop — that's the cheap forge (`echo npm test && false`
+  // logs as a failed "test" without running one). Reject those leaders. command_match is still token-binding, so
+  // a wrapper that genuinely contains a test-runner token remains the documented C3-class limit (not full
+  // semantic analysis) — but the trivial echo/printf bypass Codex flagged is closed.
+  const NON_TEST_LEADER = /^\s*(echo|printf|print|cat|type|true|false|:|#|node\s+-e|python3?\s+-c|ruby\s+-e|perl\s+-e)\b/i;
+  if (!red || !String(red).trim()) reasons.push('no red_command (the failing test run that proves test-first)');
+  else {
+    if (NON_TEST_LEADER.test(redact(red))) reasons.push(`red_command "${redact(red)}" leads with a printer/noop, not a test runner — not a real failing test`);
+    if (cm != null && !matchesPattern(norm(red), cm)) reasons.push(`red_command "${redact(red)}" is not a recognized test command (must match ${cm})`);
+    if (!loggedRun(red, false, events)) reasons.push('red_command not found as a FAILED run in the tool log — no evidence the test failed first (test-first)');
+  }
+  if (!green || !String(green).trim()) reasons.push('no green_command (the passing run after the implementation)');
+  else {
+    if (NON_TEST_LEADER.test(redact(green))) reasons.push(`green_command "${redact(green)}" leads with a printer/noop, not a test runner — not a real passing test`);
+    if (cm != null && !matchesPattern(norm(green), cm)) reasons.push(`green_command "${redact(green)}" is not a recognized test command (must match ${cm})`);
+    if (!loggedRun(green, true, events)) reasons.push('green_command not found as a PASSED run in the tool log — no evidence the implementation made it pass');
+  }
+  // red and green must be DISTINCT runs (a single command can't be both the failing and passing observation).
+  if (red && green && norm(red) === norm(green) && !record.allow_same_command) {
+    // same command is legitimate TDD (run the same test before/after) — allowed, but then BOTH a failed AND a
+    // passed run of it must exist in the log (checked above). No extra reason; the two loggedRun checks cover it.
+  }
+  return { ok: reasons.length === 0, reasons, strength: 'standard' };
+}
+
 // Verify one objective proof record. ctx = { task_slug, pack, maxAgeMs? }. events from loadEvents().
 // Returns { ok, reasons: [] } — reasons are the deterministic blockers (empty => passes the floor).
 export function verifyProof(record, ctx = {}, events = []) {
@@ -212,6 +306,17 @@ export function verifyProof(record, ctx = {}, events = []) {
   if (ctx.pack && record.pack && record.pack !== ctx.pack) reasons.push(`proof pack "${record.pack}" does not match "${ctx.pack}"`);
 
   if (!record.command || !String(record.command).trim()) reasons.push('no command recorded (proofs must name what ran)');
+  // ③ semantic binding: the recorded command must match the proof_type's contract command_match (when the
+  //    contract declares one). This is what makes proof_type MEAN something — an exit-0 `npm test` can no longer
+  //    satisfy a `migration-down` / `build` / `mcp-validate` proof. ctx.commandMatch comes from close-engine,
+  //    sourced from the trusted pack contract. Omitted (null) -> unbound (back-compat for generic proofs).
+  //    Matched against the NORMALIZED+REDACTED command (the same `norm` the log reconciliation uses) — Codex GATE
+  //    F: matching the raw command let an attacker hide the required keyword inside a secret-redacted segment
+  //    (`true password security-report-check` -> logs as `... [redacted]`), passing the token check without
+  //    running the real checker. Normalizing first means the keyword must survive redaction to count.
+  else if (ctx.commandMatch != null && !matchesPattern(norm(record.command), ctx.commandMatch)) {
+    reasons.push(`command "${redact(record.command)}" does not match the ${record.proof_type || 'proof'} contract command_match (${ctx.commandMatch}) — a proof of this type must run its matching check, not an unrelated command`);
+  }
   if (typeof record.exit_code !== 'number') reasons.push('no exit_code recorded');
   else if (record.exit_code !== 0) reasons.push(`command failed (exit ${record.exit_code})`);
 
@@ -240,7 +345,10 @@ export function verifyProof(record, ctx = {}, events = []) {
     else {
       // STRONG binding — to call a run_id proof machine-verified, ALL of these are MANDATORY (a run_id claim
       // with a missing hash or command is NOT verified; it would degrade the binding to just "an id matched").
-      if (!TRUSTED_RUN_SOURCES.has(ev.source)) reasons.push('run_id is bound to a non-trusted-execution event (not nb-run / publish-check)');
+      const requiredProducer = PROOF_PRODUCERS[record.proof_type];
+      if (requiredProducer) {
+        if (ev.source !== requiredProducer) reasons.push(`${record.proof_type} must be produced by ${requiredProducer} (logged run source: ${ev.source || 'unknown'}) — only its own gate-running script may mint it, not an arbitrary nb-run --proof`);
+      } else if (!TRUSTED_RUN_SOURCES.has(ev.source)) reasons.push('run_id is bound to a non-trusted-execution event (not nb-run / publish-check)');
       if (!record.output_sha256 || !ev.output_sha256) reasons.push('run_id proof requires output_sha256 on both the proof and the logged run');
       else if (record.output_sha256 !== ev.output_sha256) reasons.push('proof output_sha256 does not match the logged run output');
       if (!record.command || !ev.cmd) reasons.push('run_id proof requires a command on both the proof and the logged run');

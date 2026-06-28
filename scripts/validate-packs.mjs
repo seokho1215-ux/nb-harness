@@ -26,6 +26,9 @@ const ARRAY_FIELDS = ['requires_core', 'adds_agents', 'adds_skills', 'adds_workf
 const REQUIRED = ['id', 'name', 'description', 'domain', 'status', 'requires_core', 'adds_agents', 'adds_skills', 'adds_workflows', 'produces_artifacts', 'evidence_required', 'review_gate', 'approvals_required', 'state_updates', 'harness_score_contribution', 'install_deps', 'permissions', 'safety_gates', 'exit_criteria'];
 const STRENGTHS = ['light', 'standard', 'full'];
 const ID_RE = /^[a-z][a-z0-9_-]*$/; // no dots — keeps evidence_ref:proof:<pack>.<type> round-trip unambiguous
+// Analytical proofs that are LOG-PAIR proofs (reconciled against the tool log via a command pair), not cross-
+// review coverage proofs: they carry a command_match instead of required_claims. Verified by verifyTddRedGreen.
+const LOG_PAIR_PROOFS = new Set(['tdd-red-green']);
 
 // An activation rule is a substring by default; a /pattern/flags-delimited string is compiled to a RegExp
 // at load (scripts/close.mjs). Here we only check that such a string actually compiles.
@@ -68,6 +71,19 @@ export function validateCloseContract(m) {
     else if (seenTypes.has(p.proof_type)) errs.push(`proof_type "${p.proof_type}" is not unique within the pack`);
     else seenTypes.add(p.proof_type);
     if (p.strength != null && !STRENGTHS.includes(p.strength)) errs.push(`${kind}[${i}].strength not allowed: ${p.strength}`);
+    // command_match binds a proof_type to the command it must have run (substring or /regex/). Valid for
+    // objective proofs AND log-pair analytical proofs (tdd-red-green) — both reconcile a recorded command
+    // against the tool log. The cross-review analytical proofs are review-hash bound and run no command.
+    if (p.command_match != null) {
+      if (kind !== 'objective_proofs' && !LOG_PAIR_PROOFS.has(p.proof_type)) errs.push(`${kind}[${i}].command_match is only valid on objective_proofs or a log-pair analytical proof (${[...LOG_PAIR_PROOFS].join(', ')})`);
+      else if (typeof p.command_match !== 'string' || !p.command_match.trim()) errs.push(`${kind}[${i}].command_match must be a non-empty string`);
+      else if (!ruleCompiles(p.command_match)) errs.push(`${kind}[${i}].command_match looks like /regex/ but does not compile: ${p.command_match}`);
+    }
+    // required_when_workflow makes a proof OPT-IN: required only when that workflow is chosen (e.g. tdd-red-green
+    // only under the `tdd` workflow). Must be a non-empty string when present.
+    if (p.required_when_workflow != null && (typeof p.required_when_workflow !== 'string' || !p.required_when_workflow.trim())) {
+      errs.push(`${kind}[${i}].required_when_workflow must be a non-empty string`);
+    }
   };
 
   const objs = cc.objective_proofs;
@@ -78,6 +94,13 @@ export function validateCloseContract(m) {
     if (!Array.isArray(ans)) errs.push('analytical_proofs must be an array');
     else ans.forEach((p, i) => {
       checkProof(p, i, 'analytical_proofs');
+      // A log-pair analytical proof (tdd-red-green) has NO covers_claims — it reconciles a red/green command pair
+      // against the tool log (verifyTddRedGreen), so it needs a command_match instead of required_claims.
+      if (p && LOG_PAIR_PROOFS.has(p.proof_type)) {
+        if (p.command_match == null) errs.push(`analytical_proofs[${i}] (${p.proof_type}) must declare a command_match (the test command its red/green runs must match)`);
+        if (p.required_claims != null) errs.push(`analytical_proofs[${i}] (${p.proof_type}) is a log-pair proof and must NOT declare required_claims`);
+        return;
+      }
       const rc = p && p.required_claims;
       if (!Array.isArray(rc) || rc.length === 0) errs.push(`analytical_proofs[${i}].required_claims must be a non-empty array`);
       else { const seen = new Set(); rc.forEach((c, j) => {
@@ -99,7 +122,7 @@ export function validateCloseContract(m) {
 }
 
 // Pack additions discipline (item 7 / D안 — memory nb-pack-skill-bar). Enforces, hard:
-//   - adds_agents / adds_workflows MUST be empty (7 fixed agents, never per-domain; core's 8 workflows suffice).
+//   - adds_agents / adds_workflows MUST be empty (7 fixed agents, never per-domain; core's 9 workflows suffice).
 //   - every adds_skills entry MUST resolve to packs/<id>/skills/<entry>/SKILL.md (no manifest-only vanity).
 //   - every SKILL.md MUST carry the 3 contract lines (Strengthens proof / When to read / Output / checkpoint).
 //   - the "Strengthens proof: `X`" MUST name a proof_type in THIS pack's close_contract (skill tied to a proof).

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Tests for checkSecurityReport (scripts/security-report-check.mjs) — the two-round cross-family role-swap
 // gate, NB's security differentiator made enforceable. Dependency-free.
-import { checkSecurityReport } from './security-report-check.mjs';
+import { checkSecurityReport, verifyRedblueRuns } from './security-report-check.mjs';
 
 let pass = 0, fail = 0;
 const check = (n, c) => { if (c) { pass++; console.log(`PASS ${n}`); } else { fail++; console.log(`FAIL ${n}`); } };
@@ -34,6 +34,18 @@ check('valid two-family swapped report passes', checkSecurityReport(base()).ok =
 // 3b) attacker == defender within a round fails
 { const r = base(); r.round_1_defender_family = 'claude';
   check('attacker==defender in a round fails', checkSecurityReport(r).ok === false); }
+
+// 3c) Codex GATE A — Claude-alias aliasing: claude vs opus are the SAME family, so a "swap" between them is NOT
+//     a cross-family swap (it would otherwise pass the swap with ZERO codex runs).
+{ const r = { ...base(), round_1_attacker_family: 'claude', round_1_defender_family: 'opus', round_2_attacker_family: 'opus', round_2_defender_family: 'claude' };
+  const v = checkSecurityReport(r);
+  check('claude/opus alias swap is NOT cross-family (fails)', !v.ok && /different families/.test(v.reasons.join())); }
+
+// 3d) real model IDs canonicalize: `claude-sonnet-4` is still the Claude harness (so a swap vs another claude
+//     ID fails), and it needs no codex run; a genuine claude-sonnet-4 vs codex swap is fine.
+{ const sameId = { ...base(), round_1_attacker_family: 'claude-sonnet-4', round_1_defender_family: 'opus-4.8', round_2_attacker_family: 'opus-4.8', round_2_defender_family: 'claude-sonnet-4' };
+  check('two claude model-IDs are the same family (fails swap)', checkSecurityReport(sameId).ok === false);
+  check('claude model-ID needs no codex run', verifyRedblueRuns({ ...base(), round_1_attacker_family: 'claude-sonnet-4', round_2_defender_family: 'claude-sonnet-4' }, new Set(['1:defend', '2:attack'])).ok === true); }
 
 // 4) unresolved high/critical fails
 { const r = base(); r.unresolved_findings = [{ id: 'f9', severity: 'high', title: 'IDOR on /api/user' }];
@@ -129,6 +141,23 @@ check('invalid mode fails', checkSecurityReport({ ...base(), mode: 'pentest' }).
 // 7) findings/unresolved must be arrays
 check('non-array findings fails', checkSecurityReport({ ...base(), findings: 'none' }).ok === false);
 check('missing unresolved_findings fails', checkSecurityReport((() => { const r = base(); delete r.unresolved_findings; return r; })()).ok === false);
+
+// C1) verifyRedblueRuns — a non-Claude (codex) family claim must be backed by a real logged codex run for that
+//     round+role; otherwise the "two families attacked" claim is just typed strings.
+{ const r = base(); // claude attacks r1 / codex defends r1; codex attacks r2 / claude defends r2
+  check('redblue: codex claims with NO runs -> FAIL', verifyRedblueRuns(r, new Set()).ok === false);
+  check('redblue: codex claims WITH matching runs -> OK', verifyRedblueRuns(r, new Set(['1:defend', '2:attack'])).ok === true);
+  check('redblue: partial codex runs -> FAIL', verifyRedblueRuns(r, new Set(['1:defend'])).ok === false);
+  const deg = { ...base(), round_1_attacker_family: 'claude', round_1_defender_family: 'claude', round_2_attacker_family: 'claude', round_2_defender_family: 'claude', degraded_single_family: true };
+  check('redblue: degraded single-family needs no codex run', verifyRedblueRuns(deg, new Set()).ok === true);
+  check('redblue: all-claude families need no codex run', verifyRedblueRuns({ ...base(), round_1_defender_family: 'claude', round_2_attacker_family: 'claude' }, new Set()).ok === true);
+  // a family other than claude/codex (e.g. gemini) still needs a logged run -> FAIL without one
+  check('redblue: a non-claude family (gemini) also needs a real run', verifyRedblueRuns({ ...base(), round_1_defender_family: 'gemini', round_2_attacker_family: 'gemini' }, new Set()).ok === false);
+  // Codex GATE F: a DEGRADED report that names codex (codex-only single-family) must still prove codex ran.
+  const degCodex = { mode: 'analysis', degraded_single_family: true, degraded_limitations_acknowledged: true, degraded_reason: 'only codex ran today',
+    round_1_attacker_family: 'codex', round_1_defender_family: 'codex', round_2_attacker_family: 'codex', round_2_defender_family: 'codex',
+    findings: [], defenses: [], unresolved_findings: [] };
+  check('redblue: degraded codex-only with NO run -> FAIL', verifyRedblueRuns(degCodex, new Set()).ok === false); }
 
 console.log(`\n${pass} passed / ${fail} failed`);
 process.exit(fail ? 1 : 0);

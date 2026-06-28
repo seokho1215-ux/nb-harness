@@ -21,6 +21,6 @@
   "exit_criteria": ["pipeline green output captured", "rollback path noted", "production deploy approved"],
   "close_contract": {
     "activation_rules": { "paths": ["Dockerfile", "docker-compose", "/\\.github\\/workflows/", "vercel", "netlify", "/\\b(k8s|helm|terraform)\\b/i"], "commands": ["/\\b(docker|kubectl|terraform|helm|vercel|netlify|wrangler)\\b/i"] },
-    "objective_proofs": [ { "proof_type": "pipeline", "strength": "full" } ]
+    "objective_proofs": [ { "proof_type": "pipeline", "strength": "full", "command_match": "/\\b(deploy|docker|kubectl|helm|terraform|vercel|netlify|wrangler|pipeline|serverless|ansible|pulumi|gh\\s+workflow)/i" } ]
   }
 }

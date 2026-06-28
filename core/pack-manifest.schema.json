@@ -207,24 +207,29 @@
             "required": ["proof_type"],
             "properties": {
               "proof_type": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "description": "Unique within the pack (across objective+analytical). No dots — evidence_ref:proof:<pack>.<type> uses '.' as the pack/type separator." },
-              "strength": { "type": "string", "enum": ["light", "standard", "full"], "description": "Required iff effective strength (max of task strength and category floor) >= this." }
+              "strength": { "type": "string", "enum": ["light", "standard", "full"], "description": "Required iff effective strength (max of task strength and category floor) >= this." },
+              "command_match": { "type": "string", "description": "Optional. The command this proof_type must have run, as a substring or /pattern/flags regex. /nb:close (verifyProof) REJECTS a proof whose recorded command does not match — this binds proof_type to its real check so an unrelated exit-0 command (e.g. `npm test` labeled `migration-down`) cannot satisfy it. Omit for proofs whose command is inherently project-specific (e.g. testing `verify`)." },
+              "required_when_workflow": { "type": "string", "description": "Optional. Makes this proof OPT-IN: required at close only when state.current_workflow equals this value. Absent => always required." }
             }
           }
         },
         "analytical_proofs": {
           "type": "array",
-          "description": "Provenance-bound (NOT correctness-proven) coverage proofs: a hash-bound cross-family review whose covers_claims resolve to verified evidence. Verified by verifyAnalytical.",
+          "description": "Two kinds, dispatched by proof_type: (1) cross-review COVERAGE proofs — a hash-bound cross-family review whose covers_claims resolve to verified evidence (verifyAnalytical), declared with required_claims; (2) LOG-PAIR proofs (tdd-red-green) — a command pair reconciled against the tool log (verifyTddRedGreen), declared with command_match instead of required_claims.",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["proof_type", "required_claims"],
+            "required": ["proof_type"],
             "properties": {
               "proof_type": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
               "strength": { "type": "string", "enum": ["light", "standard", "full"] },
+              "required_when_workflow": { "type": "string", "description": "Optional. Makes this proof OPT-IN: required at close only when state.current_workflow equals this value (e.g. tdd-red-green only under the `tdd` workflow). Absent => always required." },
+              "command_match": { "type": "string", "description": "LOG-PAIR proofs only (tdd-red-green): the test command its red/green runs must match (substring or /pattern/flags). Invalid on coverage proofs." },
+              "note": { "type": "string", "description": "Optional human note." },
               "required_claims": {
                 "type": "array",
                 "minItems": 1,
-                "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "description": "claim_id the analytical proof must cover. Unique within the pack. No dots." }
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "description": "Coverage proofs only: claim_id the analytical proof must cover. Unique within the pack. No dots. (Omit for log-pair proofs.)" }
               }
             }
           }

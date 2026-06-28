@@ -60,13 +60,25 @@ If only one family is available, the edge (heterogeneous cross) is gone. Degrade
 The rest of NB (stages, self-check, the 3-layer scope) works fine on one family.
 
 ## Enforced, not just prompted (the report contract)
-The two-round role swap is **machine-checked**, so it can't quietly degrade to a single prompt. The gate
-writes `.nb/reviews/<task>.security-report.json` and `/nb:close` runs `scripts/security-report-check.mjs`
-over it as the security pack's **objective proof** (`security-report-check`, strength `full`). The checker
-requires: a valid `mode`, round 2 swaps roles (round-2 attacker = round-1 defender — so **both** families
-attack), no unresolved high/critical findings, and — for single-family runs — an explicit
-`degraded_single_family: true` + reason. Malformed/unreadable reports or a leaked secret fail **closed**
-(exit 2). Template + field contract: [`../../examples/security-gate-flow.md`](../../examples/security-gate-flow.md).
+The two-round role swap is **machine-checked AND execution-bound**, so it can't quietly degrade to a single
+prompt or to four typed family names. Two mechanisms:
+
+1. **Structure** — `scripts/security-report-check.mjs` (`checkSecurityReport`) requires: a valid `mode`,
+   round 2 swaps roles (round-2 attacker = round-1 defender — so **both** families attack), every finding
+   accounted for (defended or carried unresolved), no unresolved high/critical, and — for single-family runs —
+   an explicit `degraded_single_family: true` + `degraded_limitations_acknowledged: true` + reason. Malformed/
+   unreadable reports or a leaked secret fail **closed** (exit 2).
+2. **Execution binding (the cross-family claim is real, not a string)** — a report that names a non-Claude
+   family for a round must have a real Codex run on record for that round+role, produced by the
+   `scripts/security-redblue.mjs` courier (`source: security-redblue` trusted-execution event). A typed
+   `"codex"` with no logged run is **rejected**. The Claude side is the running harness (attested).
+
+The proof is **minted only by the checker itself** (`--proof`), only when BOTH pass — and it is strong-bound
+to the `security-report-check` producer (a hand-written proof, or an `nb-run`/`echo` referencing the name, is
+rejected). `/nb:close` requires that `security:security-report-check` objective proof (strength `full`), so a
+security-sensitive change cannot close on a hand-written or single-prompt report. Flow + the courier commands:
+[`../../commands/security.md`](../../commands/security.md). Template + field contract:
+[`../../examples/security-gate-flow.md`](../../examples/security-gate-flow.md).
 
 ## Execution modes (strength, not product tiers) — see `attack-gate.md`
 - **Analysis** — read & analyze risks, no attack. Lightest, the default.

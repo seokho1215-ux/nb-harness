@@ -20,7 +20,7 @@
   "safety_gates": ["self_check", "evidence_ledger", "review_gate"],
   "exit_criteria": ["before and after test runs captured and equal", "behavior unchanged per review"],
   "close_contract": {
-    "objective_proofs": [ { "proof_type": "tests-before", "strength": "standard" }, { "proof_type": "tests-after", "strength": "standard" } ],
+    "objective_proofs": [ { "proof_type": "tests-before", "strength": "standard", "command_match": "/\\b(test|jest|vitest|pytest|mocha|rspec|phpunit|go\\s+test|cargo\\s+test|gradle\\s+test|mvn\\s+test|dotnet\\s+test)/i" }, { "proof_type": "tests-after", "strength": "standard", "command_match": "/\\b(test|jest|vitest|pytest|mocha|rspec|phpunit|go\\s+test|cargo\\s+test|gradle\\s+test|mvn\\s+test|dotnet\\s+test)/i" } ],
     "analytical_proofs": [ { "proof_type": "equivalence", "strength": "standard", "required_claims": ["behavior-unchanged"] } ]
   }
 }

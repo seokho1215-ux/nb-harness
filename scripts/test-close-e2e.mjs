@@ -283,6 +283,81 @@ const decision = (nb, slug, kind, what) => wf(join(nb, 'decisions', `${slug}.${k
   rmSync(root, { recursive: true, force: true });
 }
 
+// ---- 2k) H2: a cross_family preset REQUIRES a machine-verified cross-family review -----------------------
+// The core() helper seeds a BARE review file (no provenance) — accepted as low-strength by default (a warning,
+// still READY), but a preset with cross_family:true must BLOCK it: the headline "cross-family review" is only
+// satisfied by a provenance-bound run. This makes the previously recorded-only cross_family_required a real gate.
+{
+  const nb = tmpNb(); const slug = 'cf-review';
+  core(nb, slug, { strength_level: 'standard' });
+  const r0 = run(nb);
+  check('unbound review, no preset -> READY (low-strength warning, not a block)', /✓ READY/.test(r0.stdout) && r0.status === 0 && /unverified|manual/.test(r0.stdout));
+  // turn on cross_family via a preset gate block -> the bare review now BLOCKS
+  core(nb, slug, { strength_level: 'standard', preset: { id: 'strict', gates: { require_artifacts: ['review'], cross_family: true } } });
+  const r1 = run(nb);
+  check('cross_family preset + unbound review -> NOT_READY', /NOT READY/.test(r1.stdout) && r1.status === 1 && /cross-family review/.test(r1.stdout));
+  // a real provenance-bound cross-review under the same preset -> READY
+  const h = review(nb, slug, 'Cross-family review: looks correct, no blockers.');
+  wf(join(nb, 'logs', 'tool-events.jsonl'), JSON.stringify({ tool: 'Bash', ok: true, cross_review: true, stdout_hash: h }) + '\n');
+  wj(join(nb, 'state.json'), { current_task: slug, current_task_slug: slug, current_workflow: 'standard-feature', intent_summary: `do ${slug}`, last_evidence: `.nb/evidence/${slug}.md`, last_review: `.nb/reviews/${slug}.cross-review.md`, last_brief: `.nb/briefs/${slug}.md`, strength_level: 'standard', preset: { id: 'strict', gates: { require_artifacts: ['review'], cross_family: true } } });
+  const r2 = run(nb);
+  check('cross_family preset + provenance-bound review -> READY', /✓ READY/.test(r2.stdout) && r2.status === 0 && /\[cross-family\]/.test(r2.stdout));
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+
+// ---- 2k2) H2 laundering (Codex GATE finding 3): ledger review row vs a separate bound file ----------------
+// With NO last_review pointer, the artifact ledger declares the review; a present-but-UNBOUND declared review
+// must NOT be masked by a separate bound task-matched file. Under a cross_family preset this must BLOCK (the
+// firewall grades the WEAKEST of the resolved candidates, so the bound decoy can't raise the unbound declared one).
+{
+  const nb = tmpNb(); const slug = 'launder';
+  wf(join(nb, 'evidence', `${slug}.md`), 'e'); wf(join(nb, 'briefs', `${slug}.md`), 'b');
+  wf(join(nb, 'reviews', `${slug}.unbound.md`), `Task: ${slug}\njust a note, no provenance.`); // declared, UNBOUND
+  const h = review(nb, slug, 'A real-looking bound decoy.'); // writes <slug>.cross-review.md (bound) + returns hash
+  wf(join(nb, 'logs', 'tool-events.jsonl'), JSON.stringify({ tool: 'Bash', ok: true, cross_review: true, stdout_hash: h }) + '\n');
+  // ledger points the review at the UNBOUND file; there is also the bound decoy file present in .nb/reviews
+  wf(join(nb, 'artifacts.jsonl'),
+    JSON.stringify({ ts: 't', type: 'evidence', task_slug: slug, status: 'current', path: `.nb/evidence/${slug}.md` }) + '\n' +
+    JSON.stringify({ ts: 't', type: 'review', task_slug: slug, status: 'current', path: `.nb/reviews/${slug}.unbound.md` }) + '\n' +
+    JSON.stringify({ ts: 't', type: 'brief', task_slug: slug, status: 'current', path: `.nb/briefs/${slug}.md` }) + '\n');
+  wj(join(nb, 'state.json'), { current_task: slug, current_task_slug: slug, current_workflow: 'standard-feature', intent_summary: `do ${slug}`, strength_level: 'standard', preset: { id: 'strict', gates: { require_artifacts: ['review'], cross_family: true } } });
+  const r = run(nb);
+  check('cross_family preset + ledger declares UNBOUND review (bound decoy present) -> NOT_READY', /NOT READY/.test(r.stdout) && r.status === 1 && /cross-family review/.test(r.stdout));
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+
+// ---- 2l) TDD workflow: the testing pack's red->green pair is required (opt-in) ----------------------------
+// Choosing `tdd` forces the testing pack -> close requires BOTH its objective `verify` (the GREEN run) and the
+// opt-in `tdd-red-green` analytical proof (a logged failed test then a logged passed test). The same testing
+// pack active under a normal workflow does NOT require tdd-red-green.
+{
+  const nb = tmpNb(); const slug = 'add-parser';
+  core(nb, slug, { current_workflow: 'tdd', strength_level: 'standard' });
+  wf(join(nb, 'logs', 'tool-events.jsonl'),
+    JSON.stringify({ tool: 'Bash', ok: false, cmd: 'npm test' }) + '\n' +
+    JSON.stringify({ tool: 'Bash', ok: true, cmd: 'npm test' }) + '\n');
+  wj(join(nb, 'proofs', `${slug}.verify.json`), { task: slug, pack: 'testing', proof_type: 'verify', command: 'npm test', exit_code: 0, output_excerpt: '4 passing', timestamp: '2026-06-28T00:00:00Z' });
+  // missing tdd-red-green proof first -> NOT_READY
+  const r0 = run(nb);
+  check('tdd workflow w/o tdd-red-green proof -> NOT_READY', /NOT READY/.test(r0.stdout) && r0.status === 1 && /tdd-red-green/.test(r0.stdout));
+  wj(join(nb, 'proofs', `${slug}.tdd.json`), { task: slug, pack: 'testing', proof_type: 'tdd-red-green', red_command: 'npm test', green_command: 'npm test', timestamp: '2026-06-28T00:00:00Z' });
+  const r1 = run(nb);
+  check('tdd workflow with logged red->green pair -> READY', /✓ READY/.test(r1.stdout) && r1.status === 0);
+  // drop the FAILED red run from the log -> no test-first evidence -> NOT_READY
+  wf(join(nb, 'logs', 'tool-events.jsonl'), JSON.stringify({ tool: 'Bash', ok: true, cmd: 'npm test' }) + '\n');
+  const r2 = run(nb);
+  check('tdd workflow w/o a logged RED (failed) run -> NOT_READY', /NOT READY/.test(r2.stdout) && r2.status === 1 && /failed first|FAILED run/.test(r2.stdout));
+  // same testing pack under standard-feature (observed, not tdd) -> tdd-red-green NOT required
+  rmSync(join(nb, 'proofs', `${slug}.tdd.json`), { force: true });
+  wf(join(nb, 'logs', 'tool-events.jsonl'),
+    JSON.stringify({ tool: 'Bash', ok: true, cmd: 'npm test' }) + '\n' +
+    JSON.stringify({ tool: 'Edit', ok: true, path: 'src/parser.test.js' }) + '\n');
+  wj(join(nb, 'state.json'), { current_task: slug, current_task_slug: slug, current_workflow: 'standard-feature', intent_summary: `do ${slug}`, last_evidence: `.nb/evidence/${slug}.md`, last_review: `.nb/reviews/${slug}.md`, last_brief: `.nb/briefs/${slug}.md`, strength_level: 'standard' });
+  const r3 = run(nb);
+  check('testing pack under standard-feature does NOT require tdd-red-green -> READY', /✓ READY/.test(r3.stdout) && r3.status === 0);
+  rmSync(resolve(nb, '..'), { recursive: true, force: true });
+}
+
 // ---- 3) SMOKE TABLE: every one of the 14 packs, declared + active with no proofs -> NOT_READY -----------
 // Cheap coverage for all 14 contracts (not deep e2e): proves each contract LOADS, the pack ACTIVATES (via
 // declaration), and its proof requirement BLOCKS. Uses full strength so even full-tagged proofs are required.

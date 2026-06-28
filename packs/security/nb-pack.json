@@ -29,7 +29,7 @@
       "commands": []
     },
     "objective_proofs": [
-      { "proof_type": "security-report-check", "strength": "full" }
+      { "proof_type": "security-report-check", "strength": "full", "command_match": "/security-report-check/i" }
     ],
     "analytical_proofs": [
       { "proof_type": "red-blue-covered", "strength": "full", "required_claims": ["attack-surface-reviewed", "no-blocking-findings"] }

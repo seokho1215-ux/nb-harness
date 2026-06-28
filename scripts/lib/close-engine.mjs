@@ -7,7 +7,7 @@
 //   CHECK_ERROR = we cannot trust the verdict (engine/contract/source problem, env override, required
 //                 stable pack with no contract). NOT_READY = the user's proofs/artifacts are missing/invalid.
 //   The CLI maps READY*→0, NOT_READY→1, CHECK_ERROR→2. close fails CLOSED.
-import { verifyProof, verifyAnalytical } from './proof.mjs';
+import { verifyProof, verifyAnalytical, verifyTddRedGreen } from './proof.mjs';
 
 const RANK = { light: 1, standard: 2, full: 3 };
 const rank = (s) => RANK[s] || 1;
@@ -32,6 +32,7 @@ export function closeEngine(input = {}) {
     proofs = {}, events = [], decisions = {}, taskSlug, taskStrength = 'standard', envOverride = false,
     reviewArtifacts = {}, mode = 'native', now, mustNotChange = [], requiredArtifacts, driftRisks = [],
     modelPolicyMissing = false, modelBelowFloor = [], reviewBudgetBelowFloor = false, generalTwoRound = false,
+    currentMode, currentWorkflow, presetCrossFamily = false,
   } = input;
   const errors = [];     // -> CHECK_ERROR
   const blockers = [];   // -> NOT_READY
@@ -56,6 +57,33 @@ export function closeEngine(input = {}) {
     const r = core[k]; if (!r || r.v !== 'yes') blockers.push(`core: ${k} ${r?.v || 'missing'}${r?.note ? ` (${r.note})` : ''}`);
   }
 
+  // 1a. review provenance (H2): when a `review` is required AND present, surface/gate its provenance strength.
+  // The core review slot used to credit ANY task-matching file as a full cross-family review (the headline
+  // overclaim). Now: a STRICT/cross-family profile (preset cross_family_required — previously recorded-only, M1
+  // residual) REQUIRES a machine-verified cross-family review (strength must be 'cross-family'); a manual /
+  // Generic-mode / unverified review BLOCKS under that profile. Outside it, a non-cross-family review is accepted
+  // but surfaced as a LOW-strength warning — never silently full-credited. (Security's own real cross-family gate
+  // is enforced separately via the forced security pack + security-report-check.)
+  if (required.includes('review') && core.review && core.review.v === 'yes') {
+    const rs = core.review.strength || 'unverified';
+    if (rs !== 'cross-family') {
+      if (presetCrossFamily) {
+        blockers.push(`core: review is not a machine-verified cross-family review (${core.review.reason || rs}) — this preset requires cross-family review; run /nb:review (cross-review.mjs), or record a manual cross-family review and mark it manual_fallback`);
+      } else {
+        warnings.push(`core review: ${rs} — ${core.review.reason || 'not provenance-bound to a cross-family run'} (counted as low strength; run /nb:review for a machine-verified cross-family review)`);
+      }
+    }
+  }
+
+  // 1b. state-machine (H4): a task in a pre-work or blocked state cannot certify as done. Per core/state-machine.md
+  // `done` is reachable only from the working path (implement → review → brief); `idle`/`design` mean nothing is
+  // built yet and `blocked` is an unresolved blocker. Only gated when current_mode is SET — a Generic/minimal user
+  // may omit it, in which case the artifact + floor gates still apply (fail-safe, never trusts state to PASS).
+  const NOT_CLOSEABLE_FROM = new Set(['idle', 'design', 'blocked']);
+  if (currentMode && NOT_CLOSEABLE_FROM.has(currentMode)) {
+    blockers.push(`task is in "${currentMode}" — not a state it can close from (build → review → brief first${currentMode === 'blocked' ? '; a blocked task must be unblocked, not closed as done' : ''})`);
+  }
+
   // 2. effective strength (computed before proof selection)
   const effective = Math.max(rank(taskStrength), rank(activation.floor_strength || 'light'));
 
@@ -68,17 +96,32 @@ export function closeEngine(input = {}) {
   const active = activation.active_packs || [];
   const verifiedProofs = new Set();
 
+  // An implied-ONLY pack (pulled in by a Core category, never declared/observed/forced) whose objective proof
+  // is impossible to produce here (e.g. a false-positive `data` on a project with no database -> migration
+  // proofs can't exist) can be waived as not-applicable by an explicit human decision
+  // (.nb/decisions/<task>.<pack>-na.md). Closes "false-positive category -> permanently unclosable" (KNOWN-ISSUES)
+  // without weakening the firewall: the category floor (pass 4) STILL needs acknowledgment, the waiver is a
+  // shape-validated, accountable decision on record, and the SECURITY floor is NEVER escapable this way — an
+  // auth/secret/payment change always has to produce its security report, implied or not.
+  // NA_NEVER = packs that can NEVER be N/A-waived (the safety floor). MAINTENANCE INVARIANT (Codex GATE E): any
+  // future pack that a FULL-floor safety category implies (see activation.mjs CATEGORIES + security-floor.mjs)
+  // MUST be added here, or a misdetection escape could waive a real safety gate. Today the only security-floor
+  // pack is `security` (auth/secret/payment/code-execution/ci-security all imply it).
+  const NA_NEVER = new Set(['security']);
+  const naWaived = (pack) => !explicit.has(pack) && !NA_NEVER.has(pack) && decisionOk(decisions[`${pack}-na`]);
+
   // 3a. objective
   for (const pack of active) {
     if (!contracts[pack]) {
       if (explicit.has(pack) && stablePacks.has(pack)) errors.push(`active pack "${pack}" has no close_contract — cannot verify a domain that is in play`);
       continue; // implied-only & uncontracted: no CHECK ERROR; the category floor covers the risk.
     }
+    if (naWaived(pack)) continue; // implied-only pack waived as N/A by a human decision — leans on the floor
     for (const p of contracts[pack].objective_proofs || []) {
       if (effective < rank(p.strength || 'standard')) continue; // not required at this strength
       const rec = proofs[`${pack}:${p.proof_type}`];
       if (!rec) { blockers.push(`${pack}: objective proof "${p.proof_type}" missing`); continue; }
-      const v = verifyProof(rec, { task_slug: taskSlug, pack }, events);
+      const v = verifyProof(rec, { task_slug: taskSlug, pack, commandMatch: p.command_match }, events);
       if (!v.ok) blockers.push(`${pack}.${p.proof_type}: ${v.reasons[0]}`);
       else verifiedProofs.add(`${pack}:${p.proof_type}`);
     }
@@ -87,13 +130,22 @@ export function closeEngine(input = {}) {
   // 3b. analytical (provenance-bound coverage; resolves evidence_ref against verifiedProofs + decisions)
   for (const pack of active) {
     if (!contracts[pack]) continue;
+    if (naWaived(pack)) continue; // same N/A waiver as 3a (implied-only, non-security, human decision on record)
     for (const p of contracts[pack].analytical_proofs || []) {
       if (effective < rank(p.strength || 'standard')) continue;
+      // OPT-IN proofs (TDD): a proof gated by `required_when_workflow` is required ONLY when that workflow was
+      // chosen — so the testing pack's tdd-red-green doesn't fire on every ordinary test change, only under the
+      // `tdd` workflow the user opted into. Absent field => always required (back-compat, fail SAFE).
+      if (p.required_when_workflow && p.required_when_workflow !== currentWorkflow) continue;
       const rec = proofs[`${pack}:${p.proof_type}`];
       if (!rec) { blockers.push(`${pack}: analytical proof "${p.proof_type}" missing`); continue; }
-      const v = verifyAnalytical(rec, { task_slug: taskSlug, pack, now }, {
-        events, reviewArtifacts, requiredClaims: p.required_claims || [], verifiedProofs, decisions, mode,
-      });
+      // TDD red→green is a log-reconciled pair check (a failed test run then a passed one), not a cross-review
+      // coverage claim — it uses its own verifier. Everything else is the provenance-bound cross-review path.
+      const v = (p.proof_type === 'tdd-red-green')
+        ? verifyTddRedGreen(rec, { task_slug: taskSlug, pack, commandMatch: p.command_match }, events)
+        : verifyAnalytical(rec, { task_slug: taskSlug, pack, now }, {
+          events, reviewArtifacts, requiredClaims: p.required_claims || [], verifiedProofs, decisions, mode,
+        });
       for (const e of v.errors || []) errors.push(`${pack}.${p.proof_type}: ${e}`);
       for (const r of v.reasons || []) blockers.push(`${pack}.${p.proof_type}: ${r}`);
       if (v.ok) for (const w of v.warnings || []) warnings.push(`${pack}.${p.proof_type}: ${w}`);

@@ -1,6 +1,6 @@
 # State Machine (core)
 
-NB tracks a task through a lifecycle. `state.current_mode` is the state; transitions are constrained so "done" can't be claimed without the steps behind it. This is what makes NB a control layer, not just a prompt bundle.
+NB tracks a task through a lifecycle. `state.current_mode` is the state. The flow below is the intended path; what is **machine-enforced** is the closing end of it — `/nb:close` refuses to certify "done" without the steps' *evidence*, not by replaying an edge-by-edge transition log (NB keeps no transition history). Concretely, enforcement is: the required artifacts for the workflow (plan + intent always; evidence/review/brief as the workflow declares), the Core category/security floors, AND a state-gate that refuses to close from a pre-work or blocked state (`idle`/`design`/`blocked`). That combination is what makes NB a control layer, not just a prompt bundle — the literal arrows below are the recommended flow, not each individually-verified at runtime.
 
 ## States
 `idle` · `design` · `implement` · `review` · `security` · `brief` · `done` · `blocked`

@@ -18,6 +18,25 @@ check('auth file -> auth', detectCategories({ files: ['src/auth/session.ts'] }).
 check('.env file -> secret', detectCategories({ files: ['.env.production'] }).includes('secret'));
 check('plain file -> no category', detectCategories({ files: ['src/util/format.ts'] }).length === 0);
 
+// data over-detection fix (KNOWN-ISSUES): non-DB analysis files must NOT trip `data`; real DB signals still do.
+check('non-DB data_loader.py does NOT trip data', !detectCategories({ files: ['src/data_loader.py'] }).includes('data'));
+check('market data csv does NOT trip data', !detectCategories({ files: ['data/market_prices.csv'] }).includes('data'));
+check('seed file alone no longer trips data (was over-broad)', !detectCategories({ files: ['scripts/seed_demo.ts'] }).includes('data'));
+check('real migration still trips data', detectCategories({ files: ['prisma/schema.prisma'] }).includes('data'));
+check('alter table cmd still trips data', detectCategories({ commands: ['psql -c "ALTER TABLE x ADD COLUMN y"'] }).includes('data'));
+
+// read-pollution fix (KNOWN-ISSUES): reading a file (Read/Grep) is NOT a task change; only mutations are.
+{ const t = mkdtempSync(join(tmpdir(), 'nb-act-')); mkdirSync(join(t, 'logs'), { recursive: true });
+  const reads = [{ ts: '2026-06-28T00:00:00Z', tool: 'Read', ok: true, path: 'scripts/lib/security-floor.mjs' },
+                 { ts: '2026-06-28T00:00:01Z', tool: 'Grep', ok: true, path: 'src/auth/session.ts' }];
+  writeFileSync(join(t, 'logs', 'tool-events.jsonl'), reads.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const a = resolveActivation({ nbDir: t, root: null, state: {}, packRules: {} });
+  check('reading auth/security source does NOT trip categories (read-pollution)', a.changes.files.length === 0 && !a.observed_categories.includes('auth') && !a.observed_categories.includes('secret'));
+  writeFileSync(join(t, 'logs', 'tool-events.jsonl'), JSON.stringify({ ts: '2026-06-28T00:00:02Z', tool: 'Write', ok: true, path: 'src/auth/login.ts' }) + '\n');
+  const b = resolveActivation({ nbDir: t, root: null, state: {}, packRules: {} });
+  check('writing an auth file DOES trip auth category', b.changes.files.includes('src/auth/login.ts') && b.observed_categories.includes('auth'));
+  rmSync(t, { recursive: true, force: true }); }
+
 // floorStrength
 check('data -> full floor', floorStrength(['data']) === 'full');
 check('supply-chain -> standard floor', floorStrength(['supply-chain']) === 'standard');

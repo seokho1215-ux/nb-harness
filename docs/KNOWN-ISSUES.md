@@ -1,9 +1,15 @@
 # Known Issues — NB Classifier False Positives
 
+> **✅ RESOLVED 2026-06-28.** Both issues below are fixed. Fix 1 (read-exclusion) + Fix 4 (DB-specific `data`
+> trigger) shipped in commit `c681edc`; Fix 5 (N/A escape for implied-only contracted packs) in `61e911a`.
+> The descriptions are kept as the historical record. See `notes/honesty-audit-2026-06-28.md` for the full
+> remediation (these surfaced during a broader honesty audit). Remaining nice-to-haves (Fix 2/3/6) are noted
+> in the priority table; they are extra hardening, not active defects.
+
 ## Issue 1: Read Pollution — Reads Counted as Task Changes
 
 **Severity:** Medium-low (fail-safe direction; blocks legitimate close but doesn't allow bad close)
-**Status:** Open (improvement candidate, separate task)
+**Status:** ✅ RESOLVED (`c681edc`) — Fix 1 applied: only mutating tools (Write/Edit/MultiEdit/NotebookEdit) count as task changes; Read/Grep no longer pollute the classifier.
 **Component:** `scripts/lib/activation.mjs`
 
 ### Symptom
@@ -59,7 +65,7 @@ Secondary factor: a project whose **content is security-themed** (e.g., docs/fix
 ## Issue 2: "data" Content False Positive — Contracted Pack, No Escape Route
 
 **Severity:** High (false positive → permanently unclosable without lying)
-**Status:** Open (improvement candidate, linked to Issue 1 root cause)
+**Status:** ✅ RESOLVED — Fix 4 (`c681edc`): the `data` category now triggers only on DB-specific signals (migration tooling, `.sql`, `schema.{sql,prisma,…}`, named ORMs, ALTER/CREATE/DROP TABLE) — not bare `data`/`seed`/`backup`/`db`. Fix 5 (`61e911a`): an implied-only contracted pack can be waived as not-applicable via a `.nb/decisions/<task>.<pack>-na.md` human decision (the security floor is NEVER waivable). A false-positive implication can no longer make a benign task permanently unclosable.
 **Component:** `scripts/lib/activation.mjs` + pack contract enforcement in `scripts/lib/close-engine.mjs`
 
 ### Symptom
@@ -121,11 +127,11 @@ Same root as Issue 1 (classifier over-detection), but **the contracted pack's ob
 
 ## Priority Summary
 
-| Fix | Issue | Impact |
+| Fix | Issue | Status |
 |-----|-------|--------|
-| 1 — Exclude reads from logPaths | Issue 1 | Core fix; eliminates the root cause of read pollution |
-| 4 — DB-specific "data" trigger | Issue 2 | Prevents market-data/CSV projects from hitting data pack |
-| 5 — N/A path for implied+contracted proofs | Issue 2 | Prevents false-positive implication → unclosable |
-| 2 — Exclude harness files from classification | Issue 1 | Extra guard for script-install mode |
-| 3 — Narrow scanContent to executable code | Both | Reduces content-keyword false positives in docs/fixtures |
-| 6 — Research/analysis workflow type | Issue 2 | Lightweight contract set for no-ship research work |
+| 1 — Exclude reads from logPaths | Issue 1 | ✅ Done (`c681edc`) — core fix |
+| 4 — DB-specific "data" trigger | Issue 2 | ✅ Done (`c681edc`) |
+| 5 — N/A path for implied+contracted proofs | Issue 2 | ✅ Done (`61e911a`) — `<pack>-na` decision, security never waivable |
+| 2 — Exclude harness files from classification | Issue 1 | Not needed — Fix 1 removes the root (reads no longer count); plugin-only installs never had it |
+| 3 — Narrow scanContent to executable code | Both | Already scoped — `scanContent` only scans files `langOf()` recognizes (code), skips docs/data |
+| 6 — Research/analysis workflow type | Issue 2 | Open (nice-to-have) — a no-ship lightweight contract set; the `<pack>-na` escape already prevents the unclosable case |

@@ -29,6 +29,15 @@
     },
     "objective_proofs": [
       { "proof_type": "verify", "strength": "standard" }
+    ],
+    "analytical_proofs": [
+      {
+        "proof_type": "tdd-red-green",
+        "strength": "standard",
+        "required_when_workflow": "tdd",
+        "command_match": "/\\b(jest|vitest|pytest|mocha|rspec|phpunit|go\\s+test|cargo\\s+test|gradle\\s+test|mvn\\s+test|dotnet\\s+test|npm\\s+(run\\s+)?test|yarn\\s+test|pnpm\\s+test)\\b/i",
+        "note": "Opt-in (tdd workflow only): proves test-first — the named red_command was logged as a FAILED test run and the green_command as a PASSED one. Verified by verifyTddRedGreen against the independent tool log, not verifyAnalytical (a RED run can't be an objective proof — verifyProof rejects exit != 0)."
+      }
     ]
   }
 }

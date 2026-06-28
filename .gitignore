@@ -41,3 +41,6 @@ dogfood-codex/
 
 # redaction safety — never commit un-redacted raw security reports
 reviews/*.raw.md
+
+# Windows reserved device name accidentally materialized under WSL by a `>NUL` redirect
+NUL

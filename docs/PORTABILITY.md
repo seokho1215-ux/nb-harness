@@ -36,7 +36,13 @@ specific AI tool.** You can run Core's discipline by hand in any AI app.
 (`fast`/`balanced`/`strong`/`strongest` + family `single`/`cross-family`/`two-family`) from the task's
 strength/workflow/preset and persists it as `state.model_policy` (`scripts/model-policy.mjs`). Your adapter maps
 the tier to whatever models you actually have. The user only intervenes to **lower** a tier (a `model-degrade`
-decision); raising is free — so a risky task can't be quietly run on a weak or same-family model in any tool.
+decision); raising is free.
+
+**Honest scope:** `model_policy` is a *recorded requirement*, not runtime control. `/nb:close` blocks when the
+**recorded** policy is below the derived floor without a `model-degrade` decision — it does **not** observe or
+enforce which model actually executed (that is the adapter's job; the agent `model:` frontmatter is static and
+does not read `model_policy`). So NB makes "this task needs a strong/cross-family tier" explicit and gates the
+*record*; it cannot by itself stop a tool from running the work on a weaker model.
 
 ### Packs — NB Native capability modules
 Optional domain expansions (product, frontend, testing, …). Packs ride Core and obey its rules; they

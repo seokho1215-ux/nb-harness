@@ -8,7 +8,7 @@ import { leadingFrontmatter } from './lib/workflow.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WF = join(ROOT, 'workflows');
-const NAMES = ['light-change', 'standard-feature', 'full-feature', 'bugfix', 'refactor', 'docs-only', 'security-sensitive', 'release'];
+const NAMES = ['light-change', 'standard-feature', 'full-feature', 'bugfix', 'refactor', 'docs-only', 'security-sensitive', 'release', 'tdd'];
 
 if (!existsSync(WF)) { console.error('no workflows/ directory'); process.exit(1); }
 const files = readdirSync(WF).filter((f) => f.endsWith('.md'));

@@ -18,15 +18,26 @@ import { isWorkflowFile, scanWorkflowText } from './ci-workflow-scan.mjs';
 const RANK = { light: 1, standard: 2, full: 3 };
 const higher = (a, b) => (RANK[a] >= RANK[b] ? a : b);
 
+// Tools whose tool-event represents an actual file CHANGE (so its path counts as a task change). Read/Grep/Glob
+// log a path too but only OBSERVE — they must not be treated as changes (read-pollution fix). Bash mutations
+// carry a `cmd`, not a `path`, and are classified via the command rules.
+const MUTATING_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+
 // Packs a WORKFLOW choice forces into play regardless of what the detector observed (audit #20). Choosing
 // `security-sensitive` is itself a declaration that the task touches the safety floor, so the security pack's
 // proof is required at close even when no file/command matched the auth/secret/payment regexes.
-export const WORKFLOW_FORCED_PACKS = { 'security-sensitive': ['security'] };
+// `tdd` forces the testing pack: choosing test-driven development declares that close must see the captured
+// verify (objective) AND the red→green pair (the testing pack's opt-in tdd-red-green analytical proof).
+export const WORKFLOW_FORCED_PACKS = { 'security-sensitive': ['security'], 'tdd': ['testing'] };
 
 // Core risk categories — pack-independent. Each: which files/commands signal it, its floor, and the
 // pack it implies (so a detected risk pulls that pack's proofs in even if the AI never declared it).
 export const CATEGORIES = [
-  { id: 'data',    floor: 'full',     pack: 'data',     files: /(migrat|schema|\.sql$|prisma|drizzle|supabase|seed|backup|\bdb\b)/i, cmds: /(migrat|db[ :]?push|prisma|drizzle|supabase|psql|mysql|mongo|seed|drop\s+table|truncate)/i },
+  // DB-specific only. Dropped the over-broad `seed`/`backup`/`\bdb\b` and bare `schema` (they false-fired on
+  // read-only market-data / analysis projects with no database -> data pack implied -> impossible migration
+  // proofs -> permanently unclosable; KNOWN-ISSUES "data over-detection"). Now: migration tooling, a real
+  // schema/DDL file, .sql, or a named ORM/DB client — the signals that actually mean "a database changed".
+  { id: 'data',    floor: 'full',     pack: 'data',     files: /(migrat|\.sql$|schema\.(sql|prisma|rb|py)|prisma|drizzle|sequelize|typeorm|alembic|flyway|liquibase|knex|supabase\/migrations)/i, cmds: /(migrat|db[ :]?push|prisma|drizzle|sequelize|typeorm|alembic|flyway|liquibase|knex|psql|mysql|mongosh|drop\s+table|truncate|alter\s+table|create\s+table)/i },
   { id: 'auth',    floor: 'full',     pack: 'security', files: /(auth|session|cookie|jwt|oauth|\brls\b|policy|login|sign[-_]?(in|up))/i, cmds: /(auth|jwt|oauth)/i },
   { id: 'secret',  floor: 'full',     pack: 'security', files: /(\.env|secret|credential|\bkeys?\b|token|byok|\.pem$)/i, cmds: /((KEY|TOKEN|SECRET|PASSWORD)\s*=|vault|gpg)/ },
   { id: 'payment', floor: 'full',     pack: 'security', files: /(stripe|checkout|billing|subscription|payment|invoice)/i, cmds: /(stripe|checkout|billing)/i },
@@ -152,7 +163,12 @@ export function scanCIWorkflows(root, files = []) {
 export function resolveActivation({ nbDir, root, state = {}, packRules = {} }) {
   const events = loadEvents(nbDir);
   const commands = events.filter((e) => e.cmd).map((e) => e.cmd);
-  const logPaths = events.filter((e) => e.path).map((e) => e.path);
+  // Only MUTATING file events count as task changes. Read/Grep/Glob also log a `path`, but READING a file
+  // (e.g. debugging NB's own security sources during a task) is NOT a change — counting it falsely tripped the
+  // auth/security/code-execution categories and blocked a legitimate close (KNOWN-ISSUES read-pollution). Real
+  // edits are still caught here AND by the git diff below; a mutation done via Bash carries a `cmd` (handled by
+  // `commands`). A legacy event with no `tool` field is treated as mutating (fail-safe: keep the old corroboration).
+  const logPaths = events.filter((e) => e.path && (e.tool == null || MUTATING_TOOLS.has(e.tool))).map((e) => e.path);
   const baseRef = state.task_base_ref || null;
   const git = gitChangedFiles(root, baseRef);
   const files = [...new Set([...logPaths, ...git.files])];

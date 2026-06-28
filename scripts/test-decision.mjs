@@ -22,6 +22,21 @@ const swap = (t, line, repl) => t.replace(line, repl);
 // 1) valid ack -> ok
 check('valid acknowledgment passes', verifyDecision(ackText, ackCtx).ok === true);
 
+// 1b) a `<pack>-na` waiver is an ACKNOWLEDGMENT (no alternatives required) — #5 implied-pack N/A escape.
+{ const naText = `# Decision — data-na
+task: mcclellan-backtest
+kind: data-na
+decision: The data pack was implied by a false-positive category; this project has no database, so migration proofs are not applicable.
+rationale: It reads market data from a read-only API and writes CSVs; there is no schema, migration, or DB to prove reversible.
+approved_by: Maintainer
+timestamp: 2026-06-28
+`;
+  const r = verifyDecision(naText, { kind: 'data-na', taskSlug: 'mcclellan-backtest' });
+  check('<pack>-na waiver passes WITHOUT alternatives (treated as ack)', r.ok === true);
+  // a non-ack, non-na CHOICE kind still requires alternatives
+  const choice = verifyDecision(naText.replace(/data-na/g, 'approach'), { kind: 'approach', taskSlug: 'mcclellan-backtest' });
+  check('a choice kind still needs alternatives', !choice.ok && /alternatives/.test(choice.reasons.join())); }
+
 // 2) empty -> fail
 check('empty decision blocked', verifyDecision('   ', ackCtx).ok === false);
 

@@ -57,8 +57,10 @@ export function verifyDecision(text, ctx = {}) {
   if (!rationale || isStub(rationale)) reasons.push('no rationale:/why: (a non-stub reason)');
   else if (rNorm.length < 20 || rNorm.split(' ').length < 4) reasons.push('rationale too thin (needs a real reason, not one word)');
 
-  // alternatives — required only for CHOICE kinds (an acknowledgment had no alternative)
-  if (kind && !ACK_KINDS.has(kind)) {
+  // alternatives — required only for CHOICE kinds (an acknowledgment had no alternative). A `<pack>-na` waiver
+  // (an implied pack declared not-applicable, e.g. a false-positive `data` on a no-DB project) is an
+  // acknowledgment too — there was no alternative to weigh, just a reason it does not apply.
+  if (kind && !ACK_KINDS.has(kind) && !/-na$/.test(kind)) {
     const alts = field(raw, ['alternatives', 'considered', 'options']);
     if (!alts || isStub(alts)) reasons.push('choice decision needs alternatives:/considered: (≥1 named)');
   }

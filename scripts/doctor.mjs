@@ -75,7 +75,7 @@ function sourceChecks({ ok, w, f, need }) {
     'update.mjs', 'uninstall.mjs', 'migrate-state.mjs']
     .forEach((s) => need(`scripts/${s}`));
   // high-ceiling structure
-  ['light-change', 'standard-feature', 'full-feature', 'bugfix', 'refactor', 'docs-only', 'security-sensitive', 'release']
+  ['light-change', 'standard-feature', 'full-feature', 'bugfix', 'refactor', 'docs-only', 'security-sensitive', 'release', 'tdd']
     .forEach((wf) => need(`workflows/${wf}.md`));
   ['starter', 'balanced', 'strict', 'security-heavy', 'solo-builder', 'team-review']
     .forEach((p) => need(`presets/${p}.yaml`));
@@ -113,7 +113,7 @@ function targetChecks({ ok, w, f, need }) {
   ['planner', 'implementer', 'plan-reviewer', 'code-reviewer', 'red-team', 'blue-team', 'explore']
     .forEach((a) => need(`agents/${a}.md`));
   ['design', 'implement', 'security'].forEach((m) => need(`modules/${m}/nb-module.json`));
-  ['light-change', 'standard-feature', 'full-feature', 'bugfix', 'refactor', 'docs-only', 'security-sensitive', 'release']
+  ['light-change', 'standard-feature', 'full-feature', 'bugfix', 'refactor', 'docs-only', 'security-sensitive', 'release', 'tdd']
     .forEach((wf) => need(`workflows/${wf}.md`));
   ['CAPABILITIES', 'EXTENDING', 'WORKFLOWS', 'UPGRADING'].forEach((d) => need(`docs/${d}.md`));
   // config

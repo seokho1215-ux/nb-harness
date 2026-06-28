@@ -21,7 +21,7 @@
   "exit_criteria": ["endpoint tests captured", "API contract honored", "error paths don't leak internals"],
   "close_contract": {
     "activation_rules": { "paths": ["/\\b(api|route|router|controller|handler|endpoint)\\b/i"], "commands": ["/\\b(localhost|127\\.0\\.0\\.1)\\b/"] },
-    "objective_proofs": [ { "proof_type": "tests", "strength": "standard" } ],
+    "objective_proofs": [ { "proof_type": "tests", "strength": "standard", "command_match": "/\\b(test|jest|vitest|pytest|mocha|rspec|phpunit|go\\s+test|cargo\\s+test|gradle\\s+test|mvn\\s+test|dotnet\\s+test)/i" } ],
     "analytical_proofs": [ { "proof_type": "contract-compliance", "strength": "standard", "required_claims": ["api-contract-honored", "errors-not-leaked"] } ]
   }
 }

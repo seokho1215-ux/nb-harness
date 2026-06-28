@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripBom, sha256, parseProvenance, normalizeBody } from './proof.mjs';
+import { stripBom, sha256, parseProvenance, normalizeBody, reviewBinding, loadEvents } from './proof.mjs';
 import { requiredFor } from './workflow.mjs';
 
 // Canonical text for hashing a provenance-LESS (manual) review so it can't be laundered into a 2nd "round" by
@@ -88,6 +88,40 @@ export function scoreTask(nbDir) {
   const evidence = fromLedger('evidence', state.last_evidence, 'evidence');
   const review = fromLedger('review', state.last_review, 'reviews');
   const brief = fromLedger('brief', state.last_brief, 'briefs');
+
+  // H2: classify the CORE review's provenance strength (cross-family / manual / unverified) so the firewall and
+  // harness-score can state honestly what it IS, instead of crediting a bare task-matching file as a full
+  // cross-family review. The block-vs-warn decision is close-engine's (it knows the preset/cross_family context);
+  // here we only surface bound/strength/reason on the review verdict.
+  // The artifact graded is THE declared review, resolved deterministically: the state.last_review pointer, ELSE
+  // the artifact ledger's review row path(s), ELSE task-matched files. To stop a laundering path (Codex GATE
+  // finding) where a present-but-unbound DECLARED review is masked by a separate bound task-matched file, we grade
+  // the WEAKEST strength across the resolved candidate set — a bound file can never raise a weaker declared one.
+  if (review.v === 'yes') {
+    const mode = (state.mode === 'generic' || state.adapter === 'generic') ? 'generic' : 'native';
+    const RS = { unverified: 0, manual: 1, 'cross-family': 2 };
+    let candidates = [];
+    if (state.last_review) candidates = [String(state.last_review).split('/').pop()];
+    else if (ledger && Array.isArray(ledger.review) && ledger.review.length) {
+      candidates = ledger.review.map((r) => r && r.path).filter(Boolean).map((p) => String(p).split('/').pop());
+    } else {
+      try {
+        const dir = join(nbDir, 'reviews');
+        candidates = readdirSync(dir).filter((f) => f !== '.gitkeep' && matchesTask(f, join(dir, f)));
+      } catch { /* none */ }
+    }
+    const events2 = loadEvents(nbDir);
+    let weakest = null;
+    for (const name of candidates) {
+      let txt = null;
+      try { txt = readFileSync(join(nbDir, 'reviews', name), 'utf8'); } catch { /* missing -> unverified below */ }
+      const b = txt != null ? reviewBinding(txt, events2, mode)
+        : { bound: false, strength: 'unverified', reason: `declared review "${name}" not found` };
+      if (weakest === null || (RS[b.strength] ?? 0) < (RS[weakest.strength] ?? 0)) weakest = b;
+    }
+    const b = weakest || { bound: false, strength: 'unverified', reason: 'review artifact not found to verify its provenance' };
+    review.bound = b.bound; review.strength = b.strength; review.reason = b.reason;
+  }
   const openRiskList = Array.isArray(state.open_risks) ? state.open_risks : [];
   const openRisks = openRiskList.length;
 

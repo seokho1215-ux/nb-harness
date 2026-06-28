@@ -16,6 +16,15 @@ const run = (over = {}) => closeEngine({ core: coreOK(), activation: actNone(), 
 // 1) clean -> READY
 check('clean -> READY', run().verdict === 'READY');
 
+// 1c) H4 state-gate: a task cannot close from a pre-work or blocked state (done is reachable only from the
+//     working path). Only gated when current_mode is set; absent -> artifact gates apply (back-compat).
+{ const r = run({ currentMode: 'blocked' });
+  check('close from blocked -> NOT_READY', r.verdict === 'NOT_READY' && /blocked/.test(r.blockers.join())); }
+check('close from idle -> NOT_READY', run({ currentMode: 'idle' }).verdict === 'NOT_READY');
+check('close from design -> NOT_READY', run({ currentMode: 'design' }).verdict === 'NOT_READY');
+check('close from brief -> READY', run({ currentMode: 'brief' }).verdict === 'READY');
+check('close with no current_mode -> unaffected', run({ currentMode: undefined }).verdict === 'READY');
+
 // 2) core missing evidence -> NOT_READY
 check('missing evidence -> NOT_READY', run({ core: { ...coreOK(), evidence: { v: 'missing' } } }).verdict === 'NOT_READY');
 
@@ -40,6 +49,25 @@ check('missing evidence -> NOT_READY', run({ core: { ...coreOK(), evidence: { v:
     contracts: { data: { objective_proofs: [{ proof_type: 'rollback', strength: 'standard' }] } },
     proofs: { 'data:rollback': goodProof }, events });
   check('contract proof valid+logged -> READY', r.verdict === 'READY'); }
+
+// 7b) N/A waiver (#5): an IMPLIED-ONLY contracted pack whose objective proof is impossible can be waived by a
+//     human <pack>-na decision -> READY (closes "false-positive category -> unclosable"). Floor still separate.
+{ const base = { activation: { ...actNone(), active_packs: ['data'], explicit_packs: [], implied_packs: ['data'] },
+    contracts: { data: { objective_proofs: [{ proof_type: 'migration-down', strength: 'standard' }] } } };
+  check('implied contracted pack, proof missing, no waiver -> NOT_READY', run(base).verdict === 'NOT_READY');
+  check('implied contracted pack + <pack>-na decision -> waived -> READY', run({ ...base, decisions: { 'data-na': { ok: true } } }).verdict === 'READY'); }
+
+// 7c) the SECURITY floor is NEVER N/A-escapable: an implied security pack + security-na must STILL block.
+{ const r = run({ activation: { ...actNone(), active_packs: ['security'], explicit_packs: [], implied_packs: ['security'] },
+    contracts: { security: { objective_proofs: [{ proof_type: 'security-report-check', strength: 'standard' }] } },
+    decisions: { 'security-na': { ok: true } } });
+  check('security pack N/A waiver REFUSED -> still NOT_READY', r.verdict === 'NOT_READY' && /security-report-check.*missing/.test(r.blockers.join())); }
+
+// 7d) an EXPLICIT (declared/observed) pack is NOT waivable — the domain is really in play.
+{ const r = run({ activation: { ...actNone(), active_packs: ['data'], explicit_packs: ['data'], implied_packs: [] },
+    contracts: { data: { objective_proofs: [{ proof_type: 'migration-down', strength: 'standard' }] } },
+    decisions: { 'data-na': { ok: true } } });
+  check('explicit pack N/A waiver ignored -> still NOT_READY', r.verdict === 'NOT_READY' && /migration-down.*missing/.test(r.blockers.join())); }
 
 // 8) proof required only at full, effective=light -> skipped -> READY
 { const r = run({ taskStrength: 'light', activation: { ...actNone(), active_packs: ['data'], explicit_packs: ['data'], floor_strength: 'light' },

@@ -21,7 +21,7 @@
   "exit_criteria": ["release gate green output captured", "changelog covers every user-facing change", "version bumped"],
   "close_contract": {
     "activation_rules": { "paths": ["/\\bCHANGELOG\\b/i", "/\\bRELEASE\\b/i"], "commands": ["/\\bnpm version\\b/", "/\\b(release|publish)\\b/i"] },
-    "objective_proofs": [ { "proof_type": "release-check", "strength": "standard" }, { "proof_type": "publish-file-list", "strength": "full" } ],
+    "objective_proofs": [ { "proof_type": "release-check", "strength": "standard", "command_match": "/release-check/i" }, { "proof_type": "publish-file-list", "strength": "full", "command_match": "/npm\\s+pack/i" } ],
     "analytical_proofs": [ { "proof_type": "release-notes-cover-changes", "strength": "standard", "required_claims": ["changelog-covers-changes"] } ]
   }
 }

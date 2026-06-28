@@ -28,8 +28,8 @@
       "commands": ["/\\b(migrat|prisma|drizzle|psql|mysql|mongo)\\b/i"]
     },
     "objective_proofs": [
-      { "proof_type": "migration-up", "strength": "full" },
-      { "proof_type": "migration-down", "strength": "full" }
+      { "proof_type": "migration-up", "strength": "full", "command_match": "/\\b(migrat|prisma|drizzle|knex|alembic|flyway|liquibase|sequelize|typeorm|goose|sqitch|dbmate|psql|mysql|mongosh)|db[ :_-]?(push|migrate)/i" },
+      { "proof_type": "migration-down", "strength": "full", "command_match": "/\\b(migrat|prisma|drizzle|knex|alembic|flyway|liquibase|sequelize|typeorm|goose|sqitch|dbmate|psql|mysql|mongosh|rollback|revert|down)|db[ :_-]?(push|migrate)/i" }
     ],
     "analytical_proofs": [
       { "proof_type": "rollback-safety", "strength": "full", "required_claims": ["reversible", "no-data-loss"] }

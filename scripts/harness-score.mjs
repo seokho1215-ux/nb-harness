@@ -19,7 +19,8 @@ console.log(`Workflow: ${s.workflow || 'unknown'}`);
 console.log(`Plan: ${s.plan}`);
 console.log(`Intent: ${s.intent}`);
 console.log(`Evidence: ${line(s.evidence)}`);
-console.log(`Review: ${line(s.review)}`);
+// H2: surface the review's provenance strength (cross-family / manual / unverified), not just present/absent.
+console.log(`Review: ${line(s.review)}${s.review.v === 'yes' && s.review.strength ? ` [${s.review.strength}]` : ''}`);
 console.log(`Brief: ${line(s.brief)}`);
 console.log(`Open risks: ${s.openRisks}`);
 console.log(`Status: ${s.ready ? 'READY' : 'NOT READY TO CLAIM DONE'}`);

@@ -16,10 +16,11 @@
 //   unresolved_findings: [{ id, severity, title }]
 //   degraded_single_family: bool   degraded_reason: string (required when degraded)
 //   task?, timestamp?
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { stripBom, isStub, parseProvenance } from './lib/proof.mjs';
+import { stripBom, isStub, parseProvenance, slugify, sha256, loadEvents } from './lib/proof.mjs';
 
 const MODES = ['analysis', 'red_team_sim', 'sandbox_attack'];
 const SEV = ['low', 'medium', 'high', 'critical'];
@@ -27,6 +28,14 @@ const BLOCKING_SEV = new Set(['high', 'critical']);
 const SECRET = /(sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{30,}|-----BEGIN (?:RSA |EC )?PRIVATE KEY-----)/;
 const ID_OK = /^[A-Za-z0-9._:-]+$/; // finding ids: single token, no whitespace (kills dedup-by-spacing tricks)
 const fam = (v) => String(v || '').trim().toLowerCase();
+// The "family" of the running harness — every Claude alias is the SAME side of the swap (it is the harness
+// that ran), so it needs no subprocess proof. Codex GATE A: without canonicalizing, `claude` vs `opus` read as
+// two distinct families and faked a cross-family swap with ZERO codex runs. canonFam collapses Claude aliases
+// to one identity so a real swap requires a genuinely different family (-> a real codex run, see verifyRedblueRuns).
+// Prefix-match so real model IDs canonicalize too (Codex GATE: `claude-sonnet-4`, `opus-4.8` are still the
+// Claude harness). Anchored at the start + a word boundary so `gpt`/`codex`/`gemini` are NOT swept in.
+const CLAUDE_FAM_RE = /^(claude|anthropic|opus|sonnet|haiku)\b/;
+const canonFam = (v) => (CLAUDE_FAM_RE.test(fam(v)) ? 'claude' : fam(v));
 
 // Pure structural check. opts.crossFamilyReviewRan = a real cross-family review provably ran (from the
 // cross-review provenance, passed by the CLI) — if so, a single-family DEGRADE claim is a lie.
@@ -54,12 +63,13 @@ export function checkSecurityReport(report, opts = {}) {
     if (opts.crossFamilyReviewRan) reasons.push('degraded_single_family:true but a real cross-family review ran (provenance) — two families were available, so the two-round role swap is required');
   } else {
     // The strong path: two distinct families, BOTH attack, roles swapped between rounds.
-    const r1a = fam(report.round_1_attacker_family), r1d = fam(report.round_1_defender_family);
-    const r2a = fam(report.round_2_attacker_family), r2d = fam(report.round_2_defender_family);
+    // Compare CANONICAL families: two Claude aliases (claude/opus/sonnet/...) are the SAME side, not a swap.
+    const r1a = canonFam(report.round_1_attacker_family), r1d = canonFam(report.round_1_defender_family);
+    const r2a = canonFam(report.round_2_attacker_family), r2d = canonFam(report.round_2_defender_family);
     if (!r1a || !r1d || !r2a || !r2d) reasons.push('all four round_*_family fields are required (or set degraded_single_family:true)');
     else {
-      if (r1a === r1d) reasons.push('round 1: attacker and defender must be different families');
-      if (r2a === r2d) reasons.push('round 2: attacker and defender must be different families');
+      if (r1a === r1d) reasons.push('round 1: attacker and defender must be different families (Claude aliases like claude/opus are the same family)');
+      if (r2a === r2d) reasons.push('round 2: attacker and defender must be different families (Claude aliases like claude/opus are the same family)');
       // the decisive swap: round 2 must swap roles, so BOTH families' attack imagination surfaces.
       if (!(r2a === r1d && r2d === r1a)) reasons.push('round 2 must SWAP roles (round_2 attacker = round_1 defender, round_2 defender = round_1 attacker) — both families must attack');
     }
@@ -119,6 +129,31 @@ export function checkSecurityReport(report, opts = {}) {
   return { ok: reasons.length === 0, reasons };
 }
 
+// C1: bind the cross-family CLAIM to real runs. For every round/role whose family is NOT the Claude harness,
+// require a logged security-redblue codex run for that round+role (codexRounds = Set of "<round>:<attack|defend>",
+// derived by the CLI from the trusted-execution log). This is what makes "two families attacked" TRUE rather
+// than four typed strings — you cannot claim codex attacked/defended without a real codex run. A genuinely
+// single-family report must instead set degraded_single_family:true (checkSecurityReport gates that path).
+// Returns { ok, reasons:[] }. Exported for unit tests.
+export function verifyRedblueRuns(report, codexRounds = new Set()) {
+  const reasons = [];
+  if (!report || typeof report !== 'object' || Array.isArray(report)) return { ok: false, reasons: ['no security report object'] };
+  // No degraded short-circuit (Codex GATE F): a degraded report that still NAMES a non-Claude family (e.g. a
+  // "codex-only" single-family review) must also prove that family ran. A genuinely Claude-only degrade names
+  // only Claude aliases -> need() requires nothing.
+  const cr = codexRounds instanceof Set ? codexRounds : new Set();
+  const need = (val, round, role) => {
+    const f = fam(val);
+    if (!f || canonFam(val) === 'claude') return; // the Claude harness side is attested (it ran); only external claims need proof
+    if (!cr.has(`${round}:${role}`)) reasons.push(`round_${round} ${role} claims family "${f}" but no real cross-family (codex) run was logged for round ${round} ${role} — run scripts/security-redblue.mjs for it, or set degraded_single_family:true (a typed family name is not cross-family evidence)`);
+  };
+  need(report.round_1_attacker_family, 1, 'attack');
+  need(report.round_1_defender_family, 1, 'defend');
+  need(report.round_2_attacker_family, 2, 'attack');
+  need(report.round_2_defender_family, 2, 'defend');
+  return { ok: reasons.length === 0, reasons };
+}
+
 // --- CLI (fail-closed file IO + secret scan) -------------------------------------------------------------
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const HERE = dirname(fileURLToPath(import.meta.url));
@@ -126,9 +161,11 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   // args: <report.json> [--cross-review <artifact>]. The cross-review provenance lets us reject a
   // degraded(single-family) claim when a real cross-family review provably ran.
   const args = process.argv.slice(2);
-  let reportArg = null, crPath = null;
+  let reportArg = null, crPath = null, task = null, writeProof = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--cross-review') crPath = args[++i];
+    else if (args[i] === '--task') task = args[++i];
+    else if (args[i] === '--proof') writeProof = true;
     else if (!args[i].startsWith('--') && !reportArg) reportArg = args[i];
   }
   const path = reportArg ? resolve(reportArg) : join(nb, 'reviews', 'security-report.json');
@@ -144,10 +181,51 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
       const prov = parseProvenance(stripBom(readFileSync(crPath, 'utf8')));
       crossFamilyReviewRan = !!(prov && prov.reviewer && String(prov.exit_status || '').trim() === '0');
     }
-    const { ok, reasons } = checkSecurityReport(report, { crossFamilyReviewRan });
+    // C1: derive which (round:role) actually ran through Codex (security-redblue trusted-execution log), so a
+    // non-Claude family claim in the report must be backed by a real codex run for that round+role.
+    const slug = task ? slugify(task) : (report.task ? slugify(report.task) : null);
+    const codexRounds = new Set();
+    for (const e of loadEvents(nb)) {
+      // Require an exact task match (Codex GATE C): a redblue event with no task, or another task's, does not
+      // count — the courier always stamps task, so this only rejects legacy/forged log lines.
+      if (e && e.source === 'security-redblue' && e.ok === true && e.redblue_round && e.redblue_role && slug && e.task && slugify(e.task) === slug) {
+        codexRounds.add(`${e.redblue_round}:${e.redblue_role}`);
+      }
+    }
+    const struct = checkSecurityReport(report, { crossFamilyReviewRan });
+    const runs = verifyRedblueRuns(report, codexRounds);
+    const ok = struct.ok && runs.ok;
+    const reasons = [...struct.reasons, ...runs.reasons];
     out(`NB security-report check — ${path}`);
     out(`mode: ${report.mode}  ${report.degraded_single_family ? '(degraded: single-family)' : '(cross-family, 2 rounds)'}`);
-    if (ok) { out('✓ OK — two-round cross-family role-swap (or explicitly-degraded) report with no unresolved high/critical findings.'); process.exit(0); }
+    if (ok) {
+      out('✓ OK — two-round cross-family role-swap (or explicitly-degraded) report with no unresolved high/critical findings.');
+      // C2: the proof is MINTED ONLY by this checker, ONLY when the report passes. It is a strong-bound
+      // (run_id + source: security-report-check) record, so /nb:close's security objective proof can no longer
+      // be satisfied by an arbitrary exit-0 command labeled security-report-check — the real content gate
+      // (checkSecurityReport above) must have run and passed. Mirrors publish-check -> publish-file-list.
+      if (writeProof) {
+        if (!task) { out('‼ CHECK ERROR — --proof requires --task <slug> (the proof is task-scoped).'); process.exit(2); }
+        if (report.task && slug && slugify(report.task) !== slug) { out(`‼ CHECK ERROR — report task "${report.task}" does not match --task "${slug}".`); process.exit(2); }
+        const cmd = 'node scripts/security-report-check.mjs --proof';
+        const runId = randomUUID();
+        const outputSha = sha256(raw); // bind the proof to THIS exact report content (tamper -> hash mismatch)
+        const ts = new Date().toISOString();
+        try {
+          for (const d of ['proofs', 'logs']) mkdirSync(join(nb, d), { recursive: true });
+          appendFileSync(join(nb, 'logs', 'tool-events.jsonl'), JSON.stringify({ ts, tool: 'Bash', source: 'security-report-check', ok: true, cmd, run_id: runId, output_sha256: outputSha }) + '\n');
+          writeFileSync(join(nb, 'proofs', `${slug}.security.security-report-check.json`), JSON.stringify({
+            task: slug, pack: 'security', proof_type: 'security-report-check',
+            command: cmd, exit_code: 0, run_id: runId, output_sha256: outputSha,
+            output_excerpt: `security report OK: mode ${report.mode}, ${(report.findings || []).length} finding(s), 0 unresolved high/critical`,
+            timestamp: ts,
+          }, null, 2) + '\n');
+          out(`  proof -> .nb/proofs/${slug}.security.security-report-check.json (run_id ${runId})`);
+        } catch (e) { out(`‼ CHECK ERROR — could not write the security proof (${e && e.message ? e.message : e})`); process.exit(2); }
+      }
+      process.exit(0);
+    }
+    if (writeProof) out('  (not writing a proof — the report failed the gate)');
     out('✗ FAIL — security report does not satisfy the gate:');
     for (const r of reasons) out(`   - ${r}`);
     process.exit(1);

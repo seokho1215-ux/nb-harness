@@ -21,6 +21,6 @@
   "exit_criteria": ["MCP connection validated with captured output", "granted permissions reviewed and minimal"],
   "close_contract": {
     "activation_rules": { "paths": ["mcp.json", "/mcp[_-]?config/i", "/\\.mcp\\b/"], "commands": ["/\\bmcp\\b/i"] },
-    "objective_proofs": [ { "proof_type": "mcp-validate", "strength": "standard" } ]
+    "objective_proofs": [ { "proof_type": "mcp-validate", "strength": "standard", "command_match": "/\\bmcp/i" } ]
   }
 }

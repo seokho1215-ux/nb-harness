@@ -168,6 +168,7 @@ try {
     proofs, events, decisions, reviewArtifacts, mode, now, mustNotChange, requiredArtifacts,
     taskSlug: slug, taskStrength, envOverride, driftRisks: state.drift_risks,
     modelPolicyMissing, modelBelowFloor, reviewBudgetBelowFloor, generalTwoRound,
+    currentMode: state.current_mode, currentWorkflow: state.current_workflow, presetCrossFamily: pg.cross_family,
   });
 
   console.log('NB close — can this task be closed as done?');
@@ -175,7 +176,9 @@ try {
   console.log(`Plan: ${core.plan}`);
   console.log(`Intent: ${core.intent}`);
   console.log(`Evidence: ${line(core.evidence)}`);
-  console.log(`Review: ${line(core.review)}`);
+  // H2: state the review's provenance strength honestly (cross-family/manual/unverified), not a bare yes/no.
+  const revStr = core.review.v === 'yes' && core.review.strength ? ` [${core.review.strength}]` : '';
+  console.log(`Review: ${line(core.review)}${revStr}`);
   console.log(`Brief: ${line(core.brief)}`);
   console.log(`Open risks: ${core.openRisks}`);
   if (state.preset && state.preset.id) {

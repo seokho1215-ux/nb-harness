@@ -28,8 +28,8 @@
       "commands": []
     },
     "objective_proofs": [
-      { "proof_type": "build", "strength": "standard" },
-      { "proof_type": "a11y", "strength": "standard" }
+      { "proof_type": "build", "strength": "standard", "command_match": "/\\b(build|vite|webpack|rollup|esbuild|parcel|tsc|next|nuxt|astro|compile)/i" },
+      { "proof_type": "a11y", "strength": "standard", "command_match": "/\\b(a11y|axe|pa11y|lighthouse|accessib)/i" }
     ],
     "analytical_proofs": [
       { "proof_type": "spec-fidelity", "strength": "standard", "required_claims": ["acceptance-items-covered"] }
